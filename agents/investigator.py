@@ -164,7 +164,7 @@ class Investigator:
     def _build_agents(self, state: _Run, llm: LLMProvider | None) -> None:
         state.agents = _Agents(
             company=CompanyAgent(self._client, state.store, llm),
-            hiring=HiringAgent(self._client, state.store),
+            hiring=HiringAgent(self._client, state.store, self._settings.serpapi_location),
             news=NewsAgent(self._client, state.store, llm),
             market=MarketAgent(self._client, state.store, self._settings.serpapi_location),
         )

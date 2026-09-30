@@ -264,14 +264,14 @@ def test_missing_api_key_raises_a_setup_error_instead_of_a_partial_report(settin
 
 
 def test_invalid_key_on_the_first_search_is_raised(settings):
-    client = FaultyReplay(demo_routes(NOW), settings, {("google", "Lumenpath Labs"): SerpApiError(kind="invalid_key")})
+    client = FaultyReplay(demo_routes(NOW), settings, {("google", "Lumenpath Labs company"): SerpApiError(kind="invalid_key")})
     with pytest.raises(SerpApiError) as info:
         Investigator(settings, client).run(demo_opportunity(NOW), now=NOW)
     assert info.value.kind == "invalid_key"
 
 
 def test_quota_exhaustion_midway_yields_a_partial_report_with_what_was_gathered(settings):
-    client = FaultyReplay(demo_routes(NOW), settings, {("google_news", "Lumenpath Labs"): SerpApiError(kind="rate_limited")})
+    client = FaultyReplay(demo_routes(NOW), settings, {("google_news", "Lumenpath Labs company"): SerpApiError(kind="rate_limited")})
     report, events, _ = run(settings, client)
     status = {e.stage: e.status for e in events if e.status != "running"}
     assert report.status == "partial"
@@ -348,10 +348,10 @@ def test_thin_first_round_triggers_targeted_follow_up_searches(settings):
         {"position": 1, "title": "Lumenpath Labs on LinkedIn", "link": "https://www.linkedin.example/company/lumenpath-labs",
          "snippet": "Lumenpath Labs is a software company."},
     ]}
-    official_only = json.loads(json.dumps(full_routes[("google", "lumenpath labs")]))
+    official_only = json.loads(json.dumps(full_routes[("google", "lumenpath labs company")]))
     del official_only["knowledge_graph"]  # force inference from results, not the panel
     routes = {
-        ("google", "lumenpath labs"): identity,
+        ("google", "lumenpath labs company"): identity,
         ("google", "lumenpath labs official website"): official_only,
         ("google_jobs", "software engineer intern"): full_routes[("google_jobs", "software engineer intern")],
     }
@@ -372,7 +372,7 @@ def test_thin_first_round_triggers_targeted_follow_up_searches(settings):
 
 
 def test_follow_up_budget_is_respected_and_the_skipped_search_is_explained(settings):
-    routes = {("google", "lumenpath labs"): {"organic_results": []}}
+    routes = {("google", "lumenpath labs company"): {"organic_results": []}}
     opp = demo_opportunity(NOW).model_copy(update={"application_url": "https://www.linkedin.com/jobs/view/1", "source_url": "https://www.linkedin.com/jobs/view/1"})
     report, events, client = run(settings, ReplayClient(routes, settings), opp=opp)
     detail = next(e.detail for e in events if e.stage == "followup" and e.status != "running")

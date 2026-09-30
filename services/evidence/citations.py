@@ -6,6 +6,7 @@ sentence with no marker, or with a marker that is not in the evidence store, is 
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from services.evidence.store import EvidenceStore
@@ -40,14 +41,54 @@ def strip_citations(text: str) -> str:
     return re.sub(r"\s*\[E\d+\]", "", text).strip()
 
 
-def validate_prose(text: str, store: EvidenceStore) -> ValidatedProse:
-    """Keep only sentences whose citations all resolve to real evidence."""
+_WORD = re.compile(r"[a-z]{4,}")
+_STOPWORDS = {
+    "that", "with", "this", "from", "have", "which", "their", "also", "been", "were", "will", "into", "more",
+    "than", "they", "them", "such", "these", "those", "while", "about", "other", "company", "including", "various",
+    "offers", "provides", "specializes", "developing", "focuses", "works", "helps", "based", "known",
+}
+
+
+def _stem(word: str) -> str:
+    return word[:-1] if word.endswith("s") and len(word) > 4 else word
+
+
+def grounding_score(sentence: str, evidence_text: str, ignore: set[str] = frozenset()) -> float:
+    """Share of the sentence's content words that occur in its cited evidence.
+
+    A citation id proves the source exists, not that the sentence is *supported* by it. Requiring most
+    content words to appear in the cited excerpt catches invented details that carry a valid citation.
+    Deliberately lexical (no model): cheap, deterministic and easy to reason about.
+    """
+    words = {_stem(w) for w in _WORD.findall(strip_citations(sentence).lower())} - _STOPWORDS - ignore
+    if not words:
+        return 1.0
+    available = {_stem(w) for w in _WORD.findall(evidence_text.lower())}
+    return len(words & available) / len(words)
+
+
+def validate_prose(
+    text: str,
+    store: EvidenceStore,
+    *,
+    min_grounding: float = 0.0,
+    keep_if: Callable[[str], bool] | None = None,
+    ignore_words: set[str] = frozenset(),
+) -> ValidatedProse:
+    """Keep only sentences that (1) cite evidence that exists, (2) are lexically supported by the
+    cited excerpts when ``min_grounding`` is set, and (3) satisfy ``keep_if`` (e.g. "is about the company")."""
     kept: list[str] = []
     ids: list[str] = []
     dropped = 0
     for sentence in _sentences(text):
         cited = cited_ids(sentence)
-        if cited and len(store.existing_ids(cited)) == len(cited):
+        valid = bool(cited) and len(store.existing_ids(cited)) == len(cited)
+        if valid and min_grounding > 0:
+            evidence_text = " ".join(item.evidence_text for i in cited if (item := store.get(i)))
+            valid = grounding_score(sentence, evidence_text, ignore_words) >= min_grounding
+        if valid and keep_if is not None:
+            valid = keep_if(strip_citations(sentence))
+        if valid:
             kept.append(sentence)
             ids += [i for i in cited if i not in ids]
         else:

@@ -36,10 +36,10 @@ def test_initial_plan_covers_identity_jobs_news_and_market():
     plan = _planner().initial_plan(_opp())
     assert [s.key for s in plan.searches] == ["identity", "jobs_company", "jobs_role", "news", "market"]
     by_key = {s.key: s.query for s in plan.searches}
-    assert (by_key["identity"].engine, by_key["identity"].q) == ("google", "Northwind Labs")
+    assert (by_key["identity"].engine, by_key["identity"].q) == ("google", "Northwind Labs company")
     assert by_key["jobs_company"].q == "Northwind Labs jobs" and by_key["jobs_company"].pages == 2
     assert by_key["jobs_role"].q == "Software Engineer Intern Northwind Labs"
-    assert (by_key["news"].engine, by_key["news"].q) == ("google_news", "Northwind Labs")
+    assert (by_key["news"].engine, by_key["news"].q) == ("google_news", "Northwind Labs company")
     assert by_key["market"].q == "Software Engineer Intern" and by_key["market"].pages == 3
 
 
@@ -119,7 +119,7 @@ def test_llm_extras_are_validated_deduplicated_and_capped():
     reply = _extras(
         ("google", "Northwind Labs engineering blog"),
         ("google", "best pizza near me"),  # not about the company -> rejected
-        ("google_news", "northwind labs"),  # duplicate of the news search -> rejected
+        ("google_news", "northwind labs company"),  # duplicate of the news search -> rejected
         ("google_news", "Northwind Labs partnerships"),
         ("google", "Northwind Labs glassdoor reviews"),  # over the cap of 2
     )
@@ -134,3 +134,35 @@ def test_llm_failure_never_breaks_planning():
     assert len(plan.searches) == 5
     plan = _planner(llm_planning=True, llm=FakeLLM(["garbage"] * 3)).initial_plan(_opp())
     assert len(plan.searches) == 5
+
+
+# ---- where to search (a hardcoded country compared a Stockholm role with Mumbai listings) ----------
+
+from agents.planner import search_location  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "listing_location, pref_location, expected",
+    [
+        ("Stockholm; London", None, "Stockholm"),
+        ("Bengaluru, Karnataka, India", None, "Bengaluru, Karnataka, India"),
+        ("Stockholm; London", "Pune, India", "Pune, India"),  # the user's preference wins
+        ("Remote", None, None),
+        ("Anywhere", None, None),
+        (None, None, None),
+        ("  ", None, None),
+    ],
+)
+def test_search_location(listing_location, pref_location, expected):
+    opp = OpportunityProfile(company_name="Acme", role_title="Engineer", location=listing_location)
+    assert search_location(opp, UserPreferences(location=pref_location)) == expected
+
+
+def test_job_searches_use_the_listings_own_location_and_identity_asks_for_the_company():
+    opp = OpportunityProfile(company_name="Northwind Labs", role_title="Android Engineer", location="Stockholm; London")
+    plan = _planner().initial_plan(opp)
+    for key in ("jobs_company", "jobs_role", "market"):
+        assert plan.step(key).query.location == "Stockholm", key
+    assert plan.step("identity").query.q == "Northwind Labs company"  # a bare brand name returns songs and login pages
+    assert plan.step("news").query.q == "Northwind Labs company"
+    assert plan.step("identity").query.location is None  # identity/news are not location-scoped

@@ -241,3 +241,15 @@ def test_skills_already_on_the_resume_are_not_called_a_preparation_area():
     assert text == "Python appears frequently in the sampled listings, and it is on your resume." and action is None
     assert "preparation area" not in text
     assert "preparation area" in interpret("Docker", 37.7, "not_found")[0]
+
+
+def test_market_sample_from_the_default_region_is_labelled_as_such(settings, market_step):
+    from models.plan import PlannedSearch
+    from models.search import SearchQuery
+
+    step = PlannedSearch(key="market", reason="r", query=SearchQuery(engine="google_jobs", q=ROLE, location="Stockholm", pages=1))
+    pages = {"jobs_results": [_raw(i) for i in range(12)]}
+    client = ScriptedClient(settings, {("google_jobs", ROLE): lambda p: {} if p.get("location") == "Stockholm" else pages})
+    analysis = MarketAgent(client, EvidenceStore(OPP.company_name), "India").investigate(OPP, step)
+    assert analysis.sample_size == 12 and analysis.location == "India"
+    assert analysis.notes[0].startswith("Google Jobs has no listings for 'Stockholm'") and "describe that region" in analysis.notes[0]

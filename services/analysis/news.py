@@ -14,9 +14,10 @@ from models.report import NewsHighlight, NewsSignal
 from models.search import NewsItem
 from services.analysis.hiring import role_tokens
 from services.evidence.store import EvidenceStore
-from utils.text import mentions_company, truncate
+from utils.text import brand_alias, mentions_company, normalize_company, truncate
 
 RECENCY_WINDOW_DAYS = 365
+MAX_LOW_RELEVANCE_ITEMS = 2  # consumer brands attract lots of unrelated coverage; show only a couple of low-relevance items
 _SUMMARY_CHARS = 240
 _RELATIVE_AGE = re.compile(r"(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago", re.I)
 _UNIT_DAYS = {"minute": 0, "hour": 0, "day": 1, "week": 7, "month": 30, "year": 365}
@@ -28,6 +29,9 @@ _TOPICS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     for label, pattern in (
         ("Workforce changes", r"\blay ?offs?\b|job cuts|restructur|downsiz|retrench"),
         ("Legal & regulatory", r"\blawsuit|\bsued\b|\bcourt\b|regulator|investigation|\bfined\b|penalt|\bprobe\b"),
+        # a concrete round or amount outranks the stock topic ("raises $30M in Series C" vs "UBS raises target price")
+        ("Funding & investment", r"\bseries [a-f]\b|\bseed round\b|\bpre-seed\b|\bfunding round\b|\b(?:raises?|raised|secures?|bags?) (?:[$₹€£]|rs\.?\s?)\s?\d"),
+        ("Stock & analyst coverage", r"\bshares?\b|\bstock\b|\btarget (?:price|to)\b|\bnifty\b|\bsensex\b|\banalysts?\b|\bupgrades?\b|\bdowngrades?\b|earnings|dividend|market cap"),
         ("Funding & investment", r"\bfunding\b|\braises?\b|\braised\b|series [a-f]\b|seed round|investors?\b|valuation|\bipo\b|acqui(?:red|sition|res)"),
         ("Product & launches", r"\blaunch|unveil|introduc|new product|\breleases?\b|rolls? out|debut"),
         ("Partnerships", r"partner|collaborat|tie-?up|alliance|joins? forces"),
@@ -46,6 +50,13 @@ def approx_age_days(text: str | None) -> int | None:
     if not match:
         return None
     return int(match.group(1)) * _UNIT_DAYS[match.group(2).lower()]
+
+
+def _is_subject(title: str, company: str) -> bool:
+    """Whether the headline starts with the company's name (or its brand alias)."""
+    head = " ".join(re.sub(r"[^a-z0-9 ]", " ", title.lower()).split())
+    names = [n for n in (normalize_company(company), brand_alias(company)) if n]
+    return any(head == n or head.startswith(n + " ") for n in names)
 
 
 def item_age_days(item: NewsItem, now: datetime) -> int | None:
@@ -69,6 +80,8 @@ def _relevance(topic: str, text: str, terms: set[str]) -> tuple[str, str]:
     hit = next((t for t in sorted(terms) if re.search(rf"(?<![a-z0-9]){re.escape(t)}s?(?![a-z0-9])", lowered)), None)
     if hit:
         return "high", f"Mentions '{hit}', which appears in this role's title or requirements."
+    if topic == "Stock & analyst coverage":
+        return "low", "Stock-market coverage; no clear link to this role."
     if topic != _NO_TOPIC:
         return "medium", f"Company-level coverage on the topic: {topic.lower()}."
     return "low", "General coverage of the company with no clear link to this role."
@@ -112,9 +125,15 @@ def analyze_news(
         level, reason = _relevance(topic, text, terms)
         enriched.append((item, age, topic, level, reason))
     # high relevance first, then most recent; items with unknown age go last within their level
-    enriched.sort(key=lambda e: (_RELEVANCE_RANK[e[3]], e[1] is None, e[1] if e[1] is not None else 0))
+    # Within a relevance level: headlines about the company itself ("Spotify to launch...") before headlines that
+    # merely mention it ("Universal Music appoints a former Spotify engineer"), then most recent first.
+    enriched.sort(key=lambda e: (_RELEVANCE_RANK[e[3]], not _is_subject(e[0].title, company), e[1] is None, e[1] if e[1] is not None else 0))
 
-    for item, _age, topic, level, reason in enriched[:max_items]:
+    strong = [e for e in enriched if e[3] != "low"]
+    weak = [e for e in enriched if e[3] == "low"]
+    shown = [*strong, *weak[:MAX_LOW_RELEVANCE_ITEMS]][:max_items]
+    hidden = len(enriched) - len(shown)
+    for item, _age, topic, level, reason in shown:
         evidence = store.add_news(item, f"Recent news coverage of {company}: {truncate(item.title, 90)}")
         signal.items.append(NewsHighlight(
             title=item.title, url=item.url, publisher=item.publisher, date_text=item.date_text,
@@ -124,6 +143,8 @@ def analyze_news(
         ))
     if not signal.items:
         signal.notes.append("Insufficient evidence: no recent news items mentioning the company were found.")
+    if hidden > 0:
+        signal.notes.append(f"{hidden} further low-relevance result(s) were not shown.")
     if signal.excluded_irrelevant:
         signal.notes.append(f"{signal.excluded_irrelevant} result(s) that did not mention the company were excluded.")
     if signal.excluded_old:

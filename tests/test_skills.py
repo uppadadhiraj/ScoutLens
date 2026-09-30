@@ -86,3 +86,9 @@ def test_empty_text():
 def test_categories():
     assert skill_category("Docker") == "devops"
     assert skill_category("Nope") is None
+
+
+def test_security_roles_are_recognised_from_their_own_vocabulary():
+    assert "Cybersecurity" in extract_skills("AI-powered security engineering for the platform")
+    assert "Cybersecurity" in extract_skills("You will run threat modeling and vulnerability management")
+    assert "Cybersecurity" not in extract_skills("We value security of our customers' data")  # a bare word is not a skill

@@ -10,7 +10,7 @@ from models.resume import ResumeProfile
 from services.analysis.market import analyze_market
 from services.evidence.store import EvidenceStore
 from services.serpapi.client import SerpApiClient
-from services.serpapi.jobs import fetch_jobs
+from services.serpapi.jobs import fetch_jobs_with_fallback
 from utils.errors import SerpApiError
 
 logger = logging.getLogger(__name__)
@@ -34,8 +34,16 @@ class MarketAgent:
         before = len(self._client.records)
         listings = []
         failure: str | None = None
+        region = step.query.location or self._default_location
+        region_note: str | None = None
         try:
-            listings = fetch_jobs(self._client, step.query, refresh=refresh)
+            fetched = fetch_jobs_with_fallback(self._client, step.query, self._default_location, refresh=refresh)
+            listings, region = fetched.listings, fetched.location_used
+            if fetched.fell_back:
+                region_note = (
+                    f"Google Jobs has no listings for '{fetched.requested_location}', so the market sample is from "
+                    f"'{fetched.location_used}'. Skill percentages describe that region, not the listing's."
+                )
         except SerpApiError as exc:
             if exc.is_fatal:
                 raise
@@ -46,8 +54,10 @@ class MarketAgent:
             self._store.register_searches(self._client.records)
         analysis = analyze_market(
             opp, listings, self._store, role_query=step.query.q,
-            location=step.query.location or self._default_location, resume=resume, search_ids=search_ids,
+            location=region, resume=resume, search_ids=search_ids,
         )
+        if region_note:
+            analysis.notes.insert(0, region_note)
         if failure:
             analysis.notes.append(failure)
         return analysis

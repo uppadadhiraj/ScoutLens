@@ -245,11 +245,11 @@ def demo_routes(now: datetime) -> dict[tuple[str, str], Any]:
     """Recorded responses keyed by ``(engine, lower-cased query)``, matching what the planner will ask for."""
     company_jobs = _company_jobs()
     return {
-        ("google", COMPANY.lower()): _google_identity(),
+        ("google", f"{COMPANY} company".lower()): _google_identity(),
         ("google", f"{COMPANY} funding".lower()): _google_funding(),
         ("google_jobs", f"{COMPANY} jobs".lower()): _pages(company_jobs, (10, len(company_jobs) - 10)),
         ("google_jobs", f"{ROLE} {COMPANY}".lower()): _pages([company_jobs[0], company_jobs[12], company_jobs[13]], (3,)),
-        ("google_news", COMPANY.lower()): _news(now),
+        ("google_news", f"{COMPANY} company".lower()): _news(now),
         ("google_jobs", ROLE.lower()): _pages(_market_jobs(), (21, 20, 20)),
     }
 

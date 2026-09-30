@@ -70,8 +70,18 @@ def _url_key(url: str | None) -> str:
     return f"{parsed.netloc.lower().removeprefix('www.')}{parsed.path.rstrip('/')}"
 
 
+# The same city under its old/alternative names. Without this, "Bangalore" vs "Bengaluru" produced a false
+# "none of the other listings are in your city" finding.
+_CITY_ALIASES = {
+    "bangalore": "bengaluru", "bengaluru urban": "bengaluru", "bombay": "mumbai", "gurgaon": "gurugram",
+    "madras": "chennai", "calcutta": "kolkata", "new delhi": "delhi", "poona": "pune", "cochin": "kochi",
+    "trivandrum": "thiruvananthapuram", "baroda": "vadodara", "mysore": "mysuru", "vizag": "visakhapatnam",
+}
+
+
 def city_of(location: str | None) -> str:
-    return (location or "").split(",")[0].strip().lower()
+    first = (location or "").split(",")[0].strip().lower()
+    return _CITY_ALIASES.get(first, first)
 
 
 def is_same_listing(job: JobListing, opp: OpportunityProfile) -> bool:
@@ -109,6 +119,8 @@ def analyze_hiring(
     *,
     search_ids: list[str] | None = None,
     max_sample: int = MAX_SAMPLE,
+    same_region: bool = True,
+    search_region: str | None = None,
 ) -> HiringSignal:
     company = opp.company_name or ""
     unique = dedupe_jobs(listings)
@@ -131,6 +143,7 @@ def analyze_hiring(
         titles=list(dict.fromkeys(j.title for j in related))[:10],
         listing_evidence_ids=list(evidence_for.values()),
         search_ids=search_ids or [],
+        search_region=search_region,
     )
     if excluded:
         signal.notes.append(f"{_plural(excluded, 'result')} from other employers were excluded from the sample.")
@@ -144,20 +157,32 @@ def analyze_hiring(
     signal.similar_count = sum(role_similarity(j.title, opp.role_title) >= SIMILAR_ROLE_THRESHOLD for j in related)
     _collect_context(signal, related)
     tier = seniority_of(opp.role_title)
-    comparable = [(i, j) for i, j in enumerate(related) if seniority_of(j.title) == tier]
+    broad = tier in ("intern", "junior")  # entry-level expectations are similar across departments; senior ones are not
+    comparable = [
+        (i, j) for i, j in enumerate(related)
+        if seniority_of(j.title) == tier and (broad or role_similarity(j.title, opp.role_title) >= SIMILAR_ROLE_THRESHOLD)
+    ]
     signal.experience = _experience_observations(comparable, evidence_for)
-    signal.notes.append(f"Experience is compared only with other '{tier}'-level listings.")
+    signal.notes.append(
+        f"Experience is compared only with other '{tier}'-level listings" + ("." if broad else " that have a similar title.")
+    )
 
     comps = signal.comparisons
     comps.append(_volume_comparison(signal, company))
     _add_listing_comparison(signal, opp, originals, store, len(unique))
     comps.extend(_skill_comparisons(signal, opp, related, evidence_for))
     comps.extend(_experience_comparisons(signal, opp, evidence_for))
-    comps.extend(filter(None, [
-        _location_comparison(signal, opp, related, evidence_for),
-        _work_mode_comparison(signal, opp, related, evidence_for),
-        _salary_comparison(signal, opp, related, evidence_for),
-    ]))
+    if same_region:
+        comps.extend(filter(None, [
+            _location_comparison(signal, opp, related, evidence_for),
+            _work_mode_comparison(signal, opp, related, evidence_for),
+            _salary_comparison(signal, opp, related, evidence_for),
+        ]))
+    else:
+        signal.notes.append(
+            "Location, work-arrangement and salary comparisons were skipped: the other listings come from a "
+            f"different region ({search_region or 'the default region'}) than this listing, so they would not be comparable."
+        )
     return signal
 
 

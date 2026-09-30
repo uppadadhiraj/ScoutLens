@@ -111,7 +111,8 @@ How SerpApi is used well:
 - **Adaptive planning**: the funding search is skipped for established companies; an "official website" search runs only if the first search didn't establish one; job/news fallbacks run only when the first round found nothing. A budget caps follow-ups.
 - **Unbiased market sampling**: skill percentages come from a search on the *role title only*. Searching "Docker + role" would return listings that mention Docker by construction and inflate the percentage.
 - **Credit-aware**: read-through SQLite cache (TTL configurable), pagination via `next_page_token`, and the report shows how many searches were live vs cached. Typical investigation: **9–12 searches** (identity 1, funding 1, company jobs 2 pages, similar roles 1, news 1, market 3 pages, up to 3 follow-ups).
-- **Robust parsing**: response parsers follow SerpApi's documented formats (including `iso_date` for news and `next_page_token` pagination) and drop unusable items instead of crashing.
+- **Robust parsing**: response parsers follow SerpApi's documented formats (including `iso_date` for news and `next_page_token` pagination) and drop unusable items instead of crashing. Real responses differ from the docs' examples in ways that matter, and the code handles them: Google Jobs items often have no `detected_extensions` (posted date, schedule and salary are read from the plain `extensions` list), Google News results carry no snippet, and a bare brand name in Google Search returns product pages rather than a knowledge panel.
+- **Regional fallback**: Google Jobs coverage is regional, and an empty result is not an error. Searches run near the listing's own location; if Google Jobs has nothing there, the default region (`SERPAPI_LOCATION`) is searched instead, the report says so, and comparisons that would be meaningless across regions (location, salary, work arrangement) are skipped.
 - **Key safety**: `requests` puts `api_key` in the URL, and its exception text includes that URL, so every error path is redacted before it can be logged or shown.
 
 The report's **Evidence & method** tab lists every search (API, query, purpose, live/cached, result count, timestamp).
@@ -237,7 +238,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-**525 tests, no network and no API key needed.** SerpApi is mocked with `responses` or replayed; a `ScriptedClient`/`ReplayClient` subclasses the real client so parameter building, caching and error handling are the production code paths. Coverage includes:
+**592 tests, no network and no API key needed.** SerpApi is mocked with `responses` or replayed; a `ScriptedClient`/`ReplayClient` subclasses the real client so parameter building, caching and error handling are the production code paths. Coverage includes:
 
 extraction (JSON-LD, plain HTML, JS-only pages, blocked/login pages, manual paste), skill normalisation (`Java` ≠ `JavaScript`), resume parsing (real PDF bytes: encrypted, scanned, corrupt, oversized), SerpApi parsing and error mapping (invalid key, quota, timeout, empty results, key redaction), evidence validation and citation checking, hiring/market/fit calculations (including "no invented percentages" cases), report generation, **provenance tests asserting every cited URL and excerpt exists in the raw retrieved data**, language-neutrality of all generated text, partial-failure behaviour, HTML-escaping of untrusted content, and full UI flows through Streamlit's `AppTest`.
 
@@ -272,7 +273,7 @@ scoutlens/
 ├── models/                 # Pydantic models: opportunity, search, evidence, company, resume, report, plan
 ├── ui/                     # views + design system (not `pages/`, to avoid Streamlit's auto-nav)
 ├── utils/                  # errors, URL safety, domains, text, redaction, language guard
-├── tests/                  # 525 tests + fixtures
+├── tests/                  # 592 tests + fixtures
 ├── scripts/                # screenshot capture (optional)
 ├── docs/screenshots/
 ├── data/                   # local SQLite files (git-ignored)
@@ -284,7 +285,9 @@ scoutlens/
 
 Being honest about what this MVP does *not* do:
 
-- **Live SerpApi behaviour**: parsers follow SerpApi's documented response formats and are tested against replayed/mocked responses in those shapes. If a live response differs, unusable items are dropped rather than crashing, but **run it with your key to exercise the live path**.
+- **Live SerpApi behaviour**: verified end to end against real Google data on 2026-09-30 with a Spotify listing (Stockholm/London) and a Meesho listing (Bengaluru); that is what drove the regional fallback, the funding/excerpt filters and the query changes above. Two real companies is still a small sample: expect the occasional off-target excerpt or news item, which is why every item carries its source tier and link.
+- **Company identity is only as good as Google's results.** For a well-known brand the knowledge panel gives a clean overview; for a lesser-known name the first search may return unrelated pages (a generic query for "X company" can surface dictionary entries). ScoutLens then flags low-confidence identification, runs a follow-up "official website" search, and uses its results, but the overview may be a search excerpt rather than a panel description.
+- **Google Jobs coverage is regional.** Some locations (Stockholm, in testing) return no listings at all; the report labels which region the sample came from.
 - **Job/market numbers describe what Google Jobs returned** for a query: not a random sample of the market, and Google's ranking influences it. The report says so.
 - **Skill detection is keyword-based** on a curated taxonomy (113 skills). It can miss skills described in other words and knows nothing about proficiency.
 - **Extraction is heuristic.** JS-only pages (no Playwright by design) and sign-in walls fall back to manual paste. Verify extracted fields against the listing.

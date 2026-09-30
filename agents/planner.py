@@ -29,6 +29,21 @@ _ROLE_TAIL = re.compile(r"\s+[-–—|]\s+.*$|\s*\(.*$|,.*$")
 _MAX_LLM_EXTRAS = 2
 
 
+_REMOTE_PLACES = {"remote", "anywhere", "hybrid", "worldwide", "global"}
+
+
+def search_location(opp: OpportunityProfile, prefs: UserPreferences) -> str | None:
+    """Where to run job searches: the user's preference, else the listing's own (first) location.
+
+    A hardcoded country would compare a Stockholm role with Mumbai listings. ``None`` falls back to the
+    configured default. Remote/anywhere carries no place to search from.
+    """
+    if prefs.location and prefs.location.strip():
+        return prefs.location.strip()
+    first = (opp.location or "").split(";")[0].strip()
+    return None if not first or first.lower() in _REMOTE_PLACES else first
+
+
 def simplify_role(role: str) -> str:
     """"Software Engineer Intern (Backend) - Bengaluru" -> "Software Engineer Intern"."""
     return _ROLE_TAIL.sub("", role).strip()
@@ -59,17 +74,20 @@ class InvestigationPlanner:
         prefs = prefs or UserPreferences()
         role = simplify_role(opp.role_title) if opp.role_title else None
         market_role = simplify_role(prefs.target_role) if prefs.target_role else role
+        where = search_location(opp, prefs)
         plan = InvestigationPlan()
 
+        # "<name> company" rather than the bare name: for consumer brands a bare-name query returns songs,
+        # login pages and playlists, while adding "company" brings back the knowledge panel and corporate pages.
         plan.searches.append(PlannedSearch(
             key="identity",
-            query=SearchQuery(engine="google", q=company, num=10, purpose="Identify the organization"),
+            query=SearchQuery(engine="google", q=f"{company} company", num=10, purpose="Identify the organization"),
             reason="Establish who the employer is: official website, knowledge panel, industry.",
         ))
         plan.searches.append(PlannedSearch(
             key="jobs_company",
             query=SearchQuery(
-                engine="google_jobs", q=f"{company} jobs", pages=self._settings.company_job_pages,
+                engine="google_jobs", q=f"{company} jobs", location=where, pages=self._settings.company_job_pages,
                 purpose="Find current openings at the same company",
             ),
             reason="Hiring signals need the employer's other current listings.",
@@ -78,21 +96,21 @@ class InvestigationPlanner:
             plan.searches.append(PlannedSearch(
                 key="jobs_role",
                 query=SearchQuery(
-                    engine="google_jobs", q=f"{role} {company}", pages=1,
+                    engine="google_jobs", q=f"{role} {company}", location=where, pages=1,
                     purpose="Find similar roles at the company and cross-check this listing",
                 ),
                 reason="Similar roles give a fairer comparison than all openings, and may include this listing.",
             ))
         plan.searches.append(PlannedSearch(
             key="news",
-            query=SearchQuery(engine="google_news", q=company, purpose="Recent news about the company"),
+            query=SearchQuery(engine="google_news", q=f"{company} company", purpose="Recent news about the company"),
             reason="Recent coverage can show launches, funding or changes relevant to the role.",
         ))
         if market_role:
             plan.searches.append(PlannedSearch(
                 key="market",
                 query=SearchQuery(
-                    engine="google_jobs", q=market_role, location=prefs.location,
+                    engine="google_jobs", q=market_role, location=where,
                     pages=self._settings.market_pages, purpose=f"Sample the market for '{market_role}'",
                 ),
                 reason="A role-level sample (not skill-specific) keeps skill demand percentages unbiased.",

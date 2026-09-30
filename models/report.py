@@ -134,6 +134,7 @@ class HiringSignal(BaseModel):
     similar_count: int = 0
     original_found: bool = False
     original_via: str | None = None
+    search_region: str | None = None  # where the sampled listings actually came from
 
     skill_frequencies: list[SkillFrequency] = Field(default_factory=list)
     experience: list[ExperienceObservation] = Field(default_factory=list)

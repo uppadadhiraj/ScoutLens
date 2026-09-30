@@ -290,9 +290,12 @@ def test_agent_collects_searches_and_reports_the_executed_search_ids(settings, p
 
     assert sig.sample_size == 1  # job-1 (Backend Engineer); job-2 is the original (same title, no place to contradict)
     assert sig.original_found
-    # the company search follows its pagination token (pages=2), then the role search runs
-    assert sig.search_ids == ["s1", "s2", "s3"]
-    assert [r.query for r in client.records] == ["Northwind Labs jobs", "Northwind Labs jobs", "Software Engineer Intern Northwind Labs"]
+    # the company search follows its pagination token (pages=2); the role search is scoped to Bengaluru, finds
+    # nothing there, and so runs a second time without a location (regional fallback)
+    assert sig.search_ids == ["s1", "s2", "s3", "s4"]
+    assert [r.query for r in client.records] == [
+        "Northwind Labs jobs", "Northwind Labs jobs", "Software Engineer Intern Northwind Labs", "Software Engineer Intern Northwind Labs"]
+    assert any("has no listings for 'Bengaluru, Karnataka, India'" in n for n in sig.notes)
 
 
 def test_agent_survives_a_non_fatal_search_failure(settings, planned, jobs_payload):
@@ -311,3 +314,92 @@ def test_agent_propagates_fatal_errors(settings, planned):
     with pytest.raises(SerpApiError) as info:
         HiringAgent(client, EvidenceStore(CO)).investigate(opp(), [planned.step("jobs_company")])
     assert info.value.is_fatal
+
+
+# ---- regional fallback: Google Jobs coverage is regional and an empty response is not an error ---------------
+
+def test_a_different_region_sample_skips_comparisons_that_would_be_meaningless():
+    others = [job(i, title=f"Engineer {i}", loc="Mumbai, India", work_from_home=True, salary="₹12–18 LPA") for i in range(20, 25)]
+    same, _ = analyze(opp(remote_or_onsite="onsite"), others)
+    assert {"location", "work_mode", "salary"} <= {c.kind for c in same.comparisons}
+
+    store = EvidenceStore(CO)
+    other = analyze_hiring(opp(remote_or_onsite="onsite"), others, store, same_region=False, search_region="India")
+    kinds = {c.kind for c in other.comparisons}
+    assert not ({"location", "work_mode", "salary"} & kinds)
+    assert other.search_region == "India" and any("different region (India)" in n and "would not be comparable" in n for n in other.notes)
+    assert "skills" in kinds or "volume" in kinds  # region-independent comparisons remain
+
+
+def _regional(payload_for_default):
+    """Route that returns nothing for a location-scoped request and `payload_for_default` otherwise."""
+    return lambda params: {} if params.get("location") == "Stockholm" else payload_for_default
+
+
+def test_empty_regional_search_falls_back_to_the_default_region_and_says_so(settings, jobs_payload):
+    from models.search import SearchQuery
+    from services.serpapi.jobs import fetch_jobs_with_fallback
+
+    client = ScriptedClient(settings, {("google_jobs", "acme jobs"): _regional(jobs_payload)})
+    result = fetch_jobs_with_fallback(client, SearchQuery(engine="google_jobs", q="acme jobs", location="Stockholm"), "India")
+    assert result.fell_back and result.location_used == "India" and result.requested_location == "Stockholm"
+    assert len(result.listings) == 2
+    assert [p.get("location") for p in client.params_seen] == ["Stockholm", "India"]  # second search used the configured default
+
+
+def test_no_fallback_when_the_regional_search_has_results_or_is_already_the_default(settings, jobs_payload):
+    from models.search import SearchQuery
+    from services.serpapi.jobs import fetch_jobs_with_fallback
+
+    ok = ScriptedClient(settings, {("google_jobs", "acme jobs"): jobs_payload})
+    r1 = fetch_jobs_with_fallback(ok, SearchQuery(engine="google_jobs", q="acme jobs", location="Pune"), "India")
+    assert not r1.fell_back and r1.location_used == "Pune" and len(ok.requested) == 1  # one page, no fallback
+
+    empty = ScriptedClient(settings, {})
+    r2 = fetch_jobs_with_fallback(empty, SearchQuery(engine="google_jobs", q="x", location="india"), "India")
+    assert not r2.fell_back and len(empty.requested) == 1  # already the default region: retrying would be pointless
+
+    r3 = fetch_jobs_with_fallback(ScriptedClient(settings, {}), SearchQuery(engine="google_jobs", q="x"), "India")
+    assert not r3.fell_back and r3.location_used == "India"
+
+
+def test_hiring_agent_reports_the_fallback_and_drops_regional_comparisons(settings, jobs_payload):
+    client = ScriptedClient(settings, {("google_jobs", "northwind labs jobs"): _regional(jobs_payload)})
+    plan = InvestigationPlanner(settings).initial_plan(opp(location="Stockholm; London"))
+    sig = HiringAgent(client, EvidenceStore(CO), "India").investigate(opp(location="Stockholm; London"), [plan.step("jobs_company")])
+    assert sig.sample_size == 2 and sig.search_region == "India"
+    assert any("has no listings for 'Stockholm'" in n and "searched in 'India' instead" in n for n in sig.notes)
+    assert not {"location", "work_mode", "salary"} & {c.kind for c in sig.comparisons}
+
+
+# ---- lessons from real Indian data --------------------------------------------------------------------
+
+def test_bangalore_and_bengaluru_are_the_same_city():
+    from services.analysis.hiring import city_of
+
+    assert city_of("Bangalore, Karnataka") == city_of("Bengaluru, Karnataka, India") == "bengaluru"
+    assert city_of("Bombay") == "mumbai" and city_of("Gurgaon, Haryana") == "gurugram" and city_of("New Delhi") == "delhi"
+
+
+def test_no_false_location_finding_when_the_listing_uses_an_alternative_city_name():
+    others = [job(i, title=f"Engineer {i}", loc="Bengaluru, Karnataka, India") for i in range(20, 24)]
+    sig, _ = analyze(opp(location="Bangalore, Karnataka"), others)
+    assert not any(c.kind == "location" for c in sig.comparisons)
+
+
+def test_experience_for_senior_roles_is_compared_only_with_similar_titles():
+    # a Security Architect (10+ years) is not comparable with every other senior role in the company
+    security = opp(role_title="Security Architect", experience_min_years=10.0, experience_max_years=None)
+    listings = [job(i, title=t, desc=f"Requires {y} of experience.") for i, (t, y) in enumerate(
+        [("Senior Sales Manager", "6+ years"), ("Senior Data Engineer", "4-7 years"), ("Senior Marketing Lead", "8+ years"),
+         ("Senior Security Engineer", "5+ years"), ("Senior Security Architect", "12+ years")], start=50)]
+    sig, _ = analyze(security, listings)
+    assert [o.title for o in sig.experience] == ["Senior Security Engineer", "Senior Security Architect"]
+    assert any("similar title" in n for n in sig.notes)
+    (comp,) = [c for c in sig.comparisons if c.kind == "experience"]
+    assert "6+" not in comp.fact and "4–7" not in comp.fact
+
+
+def test_entry_level_experience_is_still_compared_across_departments():
+    sig, _ = analyze(opp(), _exp_listings("1-3 years", "1-3 years"))
+    assert len(sig.experience) == 2 and not any("similar title" in n for n in sig.notes)

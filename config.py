@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     serpapi_gl: str = "in"
     serpapi_hl: str = "en"
     serpapi_location: str = "India"
-    serpapi_timeout: float = 25.0
+    serpapi_timeout: float = 45.0  # real Google searches (esp. with AI overviews) can take 20+ s
 
     # LLM
     llm_provider: Literal["ollama", "openai", "none"] = "ollama"

@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime, timezone
 
 import responses
@@ -143,3 +144,40 @@ def test_knowledge_graph_drops_noisy_contact_and_ticker_attributes(google_payloa
     google_payload["knowledge_graph"].update({"sales": "1 (800) 692-7753", "stock_price": "AAPL $200", "customer_service": "1 (800)"})
     kg = parse_google(google_payload, "s1").knowledge_graph
     assert kg.attributes == {"headquarters": "Bengaluru, India", "founded": "2016"}
+
+
+# ---- shapes observed in real responses (not in the docs' examples) -------------------------------
+
+def test_real_jobs_response_without_detected_extensions_is_read_from_the_extensions_list():
+    from tests.conftest import load_fixture
+
+    first, second = parse_jobs(load_fixture("serpapi_jobs_real_shape"), "s1")
+    assert (first.posted_at, first.schedule_type, first.salary, first.work_from_home) == ("3 days ago", "Full-time", "₹20K–25K a month", True)
+    assert first.via == "LinkedIn" and first.location == "Stockholm, Sweden"
+    assert first.url == "https://www.linkedin.example/jobs/view/1?utm=x"
+
+
+def test_detected_extensions_win_over_the_plain_list_when_both_exist():
+    from tests.conftest import load_fixture
+
+    _, second = parse_jobs(load_fixture("serpapi_jobs_real_shape"), "s1")
+    assert (second.posted_at, second.schedule_type, second.salary) == ("1 day ago", "Contractor", "12–15 LPA")
+
+
+@pytest.mark.parametrize("text", ["No degree mentioned", "Health insurance", "Paid time off for a monthly review", "Dental coverage"])
+def test_benefit_and_filler_extensions_are_not_mistaken_for_salary(text):
+    from services.serpapi.jobs import _from_extensions
+
+    assert "salary" not in _from_extensions([text])
+
+
+@pytest.mark.parametrize("text", ["₹20K–25K a month", "$80,000 a year", "12–18 LPA", "€25 per hour"])
+def test_salary_extensions_are_recognised(text):
+    from services.serpapi.jobs import _from_extensions
+
+    assert _from_extensions([text]).get("salary") == text
+
+
+def test_knowledge_graph_entity_type_is_not_a_company_fact(google_payload):
+    google_payload["knowledge_graph"]["entity_type"] = "companies, company"
+    assert "entity type" not in parse_google(google_payload, "s1").knowledge_graph.attributes

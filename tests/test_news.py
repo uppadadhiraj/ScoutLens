@@ -169,16 +169,16 @@ def _agent(settings, routes, llm=None, errors=None):
 
 
 def test_agent_runs_the_news_search_and_records_the_search_id(settings, steps, news_payload):
-    agent, client = _agent(settings, {("google_news", CO): news_payload})
+    agent, client = _agent(settings, {("google_news", f"{CO} company"): news_payload})
     signal, relevant = agent.investigate(OPP, steps, max_items=8)
     assert len(signal.items) == 3 and signal.search_ids == ["s1"] and client.records[0].engine == "google_news"
 
 
 def test_agent_fatal_error_propagates_but_others_become_notes(settings, steps):
-    agent, _ = _agent(settings, {}, errors={("google_news", CO.lower()): SerpApiError(kind="timeout")})
+    agent, _ = _agent(settings, {}, errors={("google_news", f"{CO} company".lower()): SerpApiError(kind="timeout")})
     signal, _ = agent.investigate(OPP, steps)
     assert signal.items == [] and any("failed" in n for n in signal.notes)
-    agent, _ = _agent(settings, {}, errors={("google_news", CO.lower()): SerpApiError(kind="rate_limited")})
+    agent, _ = _agent(settings, {}, errors={("google_news", f"{CO} company".lower()): SerpApiError(kind="rate_limited")})
     with pytest.raises(SerpApiError):
         agent.investigate(OPP, steps)
 
@@ -189,7 +189,7 @@ def _judge(*rows):
 
 def test_llm_refinement_updates_relevance_and_reorders(settings, steps, news_payload):
     llm = FakeLLM([_judge((0, "low", "General funding news."), (2, "high", "Discusses the new product this role may support."))])
-    agent, _ = _agent(settings, {("google_news", CO): news_payload}, llm)
+    agent, _ = _agent(settings, {("google_news", f"{CO} company"): news_payload}, llm)
     signal, _ = agent.investigate(OPP, steps)
     assert signal.items[0].title == "Analysts on Northwind's new product" and signal.items[0].relevance == "high"
     assert signal.items[0].relevance_reason == "Discusses the new product this role may support."
@@ -199,7 +199,7 @@ def test_llm_refinement_updates_relevance_and_reorders(settings, steps, news_pay
 
 def test_llm_refinement_ignores_bad_indexes_and_non_neutral_reasons(settings, steps, news_payload):
     llm = FakeLLM([_judge((0, "high", "This is definitely a great company."), (99, "high", "Out of range."), (1, "low", "A neutral reason."))])
-    agent, _ = _agent(settings, {("google_news", CO): news_payload}, llm)
+    agent, _ = _agent(settings, {("google_news", f"{CO} company"): news_payload}, llm)
     signal, _ = agent.investigate(OPP, steps)
     by_title = {n.title: n for n in signal.items}
     assert by_title["Northwind Labs raises Series B to expand logistics platform"].relevance == "medium"  # untouched
@@ -207,7 +207,7 @@ def test_llm_refinement_ignores_bad_indexes_and_non_neutral_reasons(settings, st
 
 
 def test_llm_unavailable_leaves_deterministic_results(settings, steps, news_payload):
-    agent, _ = _agent(settings, {("google_news", CO): news_payload}, FakeLLM(available=False))
+    agent, _ = _agent(settings, {("google_news", f"{CO} company"): news_payload}, FakeLLM(available=False))
     signal, _ = agent.investigate(OPP, steps)
     assert len(signal.items) == 3 and signal.items[0].relevance == "medium"
 
@@ -220,3 +220,42 @@ def test_expansion_topics_with_words_between_verb_and_place():
 def test_plural_role_terms_still_count_as_a_role_link():
     signal, _, _ = run([news("Northwind Labs is recruiting", snippet="It plans to add software engineers this year.")])
     assert signal.items[0].relevance == "high"
+
+
+def test_only_a_couple_of_low_relevance_items_are_shown_and_the_rest_are_counted():
+    # consumer brands attract lots of unrelated coverage (real example: celebrity records on a music service)
+    strong = news("Northwind Labs hiring software engineer interns", date_text="1 day ago")
+    weak = [news(f"Northwind Labs at expo number {i}", url=f"https://n.example/{i}") for i in range(6)]
+    signal, _, _ = run([strong, *weak])
+    assert [n.relevance for n in signal.items] == ["high", "low", "low"]
+    assert any("4 further low-relevance result(s) were not shown" in n for n in signal.notes)
+
+
+def test_headlines_about_the_company_outrank_headlines_that_merely_mention_it():
+    # real example: news of another firm hiring a *former* employee is not news about the employer
+    mention = news("Universal Music appoints a former Northwind Labs executive to a new role", date_text="1 day ago")
+    subject = news("Northwind Labs to launch a route planner", date_text="20 days ago")
+    signal, _, _ = run([mention, subject])
+    assert [n.title for n in signal.items][0].startswith("Northwind Labs to launch")
+
+
+@pytest.mark.parametrize(
+    "headline, topic",
+    [
+        ("Meesho Surges 11% As UBS Raises Target To Rs 260, Upgrades Profit Outlook", "Stock & analyst coverage"),
+        ("Meesho shares jump 6% as UBS raises target price", "Stock & analyst coverage"),
+        ("Meesho to host investor meet on Sep 21", "Funding & investment"),  # weak funding signal, not a stock story
+        ("Meesho raises $30M in Series C funding", "Funding & investment"),
+        ("Meesho secures Rs 500 crore from investors", "Funding & investment"),
+    ],
+)
+def test_analyst_and_stock_headlines_are_not_funding_news(headline, topic):
+    assert classify_topic(headline) == topic
+
+
+def test_stock_price_coverage_is_low_relevance_unless_it_mentions_the_role():
+    signal, _, _ = run([news("Northwind Labs shares jump 6% as UBS raises target price")])
+    assert signal.items[0].topic == "Stock & analyst coverage" and signal.items[0].relevance == "low"
+    assert signal.items[0].relevance_reason == "Stock-market coverage; no clear link to this role."
+    role_linked, _, _ = run([news("Northwind Labs shares rise as it hires software engineers")])
+    assert role_linked.items[0].relevance == "high"

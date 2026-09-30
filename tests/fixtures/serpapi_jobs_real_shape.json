@@ -1,0 +1,60 @@
+{
+  "search_metadata": {
+    "id": "real1",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_jobs",
+    "q": "Northwind Labs jobs",
+    "location_used": "Stockholm, Sweden"
+  },
+  "jobs_results": [
+    {
+      "title": "Android Engineer",
+      "company_name": "Northwind Labs",
+      "location": "Stockholm, Sweden",
+      "via": "LinkedIn",
+      "description": "Build Android apps in Kotlin.",
+      "job_id": "real-1",
+      "share_link": "https://www.google.com/search?ibp=htl;jobs#htidocid=real-1",
+      "source_link": "https://www.linkedin.example/jobs/view/1",
+      "extensions": [
+        "3 days ago",
+        "₹20K–25K a month",
+        "Full-time",
+        "Work from home",
+        "No degree mentioned",
+        "Health insurance",
+        "Paid time off for a monthly review"
+      ],
+      "apply_options": [
+        {
+          "title": "LinkedIn",
+          "link": "https://www.linkedin.example/jobs/view/1?utm=x"
+        }
+      ]
+    },
+    {
+      "title": "Data Analyst",
+      "company_name": "Northwind Labs",
+      "location": "Anywhere",
+      "via": "Indeed",
+      "description": "SQL.",
+      "job_id": "real-2",
+      "share_link": "https://www.google.com/search?htidocid=real-2",
+      "detected_extensions": {
+        "posted_at": "1 day ago",
+        "schedule_type": "Contractor",
+        "salary": "12–15 LPA"
+      },
+      "extensions": [
+        "5 days ago",
+        "Full-time"
+      ]
+    }
+  ],
+  "serpapi_pagination": {
+    "next_page_token": "TOK",
+    "next": "https://serpapi.com/x"
+  }
+}

@@ -27,13 +27,17 @@ class ScriptedClient(SerpApiClient):
         self.routes = {(e, q.lower()): v for (e, q), v in (routes or {}).items()}
         self.errors = {(e, q.lower()): v for (e, q), v in (errors or {}).items()}
         self.requested: list[tuple[str, str]] = []
+        self.params_seen: list[dict[str, Any]] = []
 
     def _request(self, params: dict[str, Any], api_key: str) -> dict[str, Any]:
         key = (params["engine"], params["q"].lower())
         self.requested.append(key)
+        self.params_seen.append(dict(params))
         if key in self.errors:
             raise self.errors[key]
         payload = self.routes.get(key, {})
+        if callable(payload):  # lets a test vary the response by request params (e.g. location)
+            payload = payload(params)
         if not isinstance(payload, list):
             return copy.deepcopy(payload)
         token = params.get("next_page_token")

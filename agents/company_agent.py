@@ -23,15 +23,37 @@ from services.serpapi.search import GoogleResults, fetch_google
 from utils.domains import is_job_board_or_ats, origin_of, registered_domain
 from utils.errors import ScoutLensError
 from utils.language_guard import is_neutral
-from utils.text import GENERIC_TRAILING_WORDS, mentions_company, normalize_company, truncate
+from utils.text import GENERIC_TRAILING_WORDS, brand_alias, mentions_company, normalize_company, truncate
 
 logger = logging.getLogger(__name__)
 
 FUNDING_PATTERN = re.compile(
-    r"\b(raised|raises|raising|funding|funded|series [a-f]\b|seed round|pre-seed|investors?|valuation|"
-    r"acquired|acquisition|acquires|ipo|backed by)\b",
+    r"\b(raised|raises|raising|funding|funded|investment|invests|invested|round|series [a-f]|seed|backed by)\b", re.I
+)
+# Stock sales, earnings and dividends mention money and investors without being about funding the company.
+_NOT_FUNDING = re.compile(r"\b(stock|shares?|selling|sells|sold|earnings|dividend|buyback|price target)\b", re.I)
+# A funding statement must name an amount or a specific round; "investor day recap" or "founder funding
+# military AI" mention the topic without saying anything about *this company's* funding.
+_AMOUNT = re.compile(r"[$€£₹]\s?\d|\b\d+(?:\.\d+)?\s?(?:million|billion|crore|lakh|[MB])\b", re.I)
+_ROUND = re.compile(r"\bseries [a-f]\b|\bseed round\b|\bpre-seed\b|\bfunding round\b|\bacquired by\b", re.I)
+# Pages that say nothing descriptive about the business: logins, downloads, single songs/videos.
+_UTILITY_URL = re.compile(
+    r"/(?:login|log-in|signin|sign-in|signup|sign-up|register|account|download|cart|checkout|track|album|playlist|"
+    r"artist|episode|shorts|watch|reel|status)(?:/|$|\?)",
     re.I,
 )
+_BOILERPLATE_SNIPPET = re.compile(r"^(?:no information is available for this page|a description for this result is not available)", re.I)
+_ABOUT_URL = re.compile(r"/(?:about|company|who-we-are|our-story|overview|press|newsroom|careers|investors?)(?:/|$|-)", re.I)
+# Company-profile pages describe the business; storefront pages sell it ("Grab Exciting Deals - Unbeatable Prices").
+_PROFILE_URL = re.compile(r"(?:wikipedia\.org/wiki/|linkedin\.com/(?:company|school)/|crunchbase\.com/organization/)", re.I)
+_PROMO = re.compile(
+    r"\b(unbeatable|exciting deals?|best prices?|lowest prices?|download the app|shop now|grab|free shipping|limited[- ]time|"
+    r"order now|sign up (?:now|today)|use code|coupon|cashback|discounts?)\b",
+    re.I,
+)
+_MIN_DESCRIPTIVE_SNIPPET = 40
+_ABOUT_COMPANY_START = re.compile(r"^(?:it|its|they|the company|the organi[sz]ation)\b", re.I)
+_MIN_GROUNDING = 0.5
 _MAX_RELEVANT_HITS = 6
 _MAX_PRODUCT_FACTS = 2
 _MAX_FUNDING_FACTS = 3
@@ -39,10 +61,43 @@ _MAX_LLM_EXCERPTS = 5
 _YEAR = re.compile(r"\b(19|20)\d{2}\b")
 _OVERVIEW_SYSTEM = (
     "You write neutral, factual company overviews for job seekers using ONLY the numbered excerpts provided. "
-    "Every sentence must end with one or more citation markers such as [E3] naming the excerpts that support it. "
-    "Do not add facts that are not in the excerpts. Do not praise, criticise or evaluate the company. "
-    "If the excerpts support nothing useful, reply with an empty string."
+    "Describe what the company itself does. Ignore excerpts that are about songs, playlists, videos, login pages or "
+    "anything other than the company's business. Every sentence must name the company (or start with 'It') and end "
+    "with one or more citation markers such as [E3] naming the excerpts that support it. Do not add facts that are "
+    "not in the excerpts. Do not praise, criticise or evaluate the company, and do not repeat promotional or marketing "
+    "language (best, unbeatable, exciting deals). If the excerpts do not describe the company's business, reply with "
+    "an empty string."
 )
+
+
+def _first_funding_word(text: str) -> int | None:
+    positions = [m.start() for m in (FUNDING_PATTERN.search(text), _ROUND.search(text)) if m]
+    return min(positions) if positions else None
+
+
+def is_funding_fact(text: str, company: str | None = None) -> bool:
+    """Funding coverage that says something concrete: a money amount with a funding word, or a named round.
+
+    With ``company`` given, the company must be mentioned *before* the funding words, so "Blissclub founder's
+    stake slips after Series B; Meesho's founder holds 6.9%" is not read as Meesho funding news.
+    """
+    money = bool(_AMOUNT.search(text) and FUNDING_PATTERN.search(text) and not _NOT_FUNDING.search(text))
+    if not (money or _ROUND.search(text)):
+        return False
+    if company:
+        lowered = text.lower()
+        names = [n for n in (normalize_company(company), brand_alias(company)) if n]
+        at = [lowered.find(n) for n in names if lowered.find(n) != -1]
+        funding_at = _first_funding_word(text)
+        if not at or (funding_at is not None and min(at) > funding_at):
+            return False
+    return True
+
+
+def is_descriptive(hit: SearchHit) -> bool:
+    """Whether a result can serve as a description of the business (not boilerplate, login or content pages)."""
+    snippet = hit.snippet or ""
+    return len(snippet) >= _MIN_DESCRIPTIVE_SNIPPET and not _BOILERPLATE_SNIPPET.search(snippet) and not _UTILITY_URL.search(hit.url)
 
 
 @dataclass
@@ -127,15 +182,29 @@ class CompanyAgent:
         hits = self._relevant_hits(profile.name, found.hits)
         result.relevant_hits = [*result.relevant_hits, *(h for h in hits if h not in result.relevant_hits)]
         self._establish_website(profile, opp, found.knowledge_graph, hits)
-        if profile.website:
-            profile.identity_confirmed = True
-            profile.gaps = [g for g in profile.gaps if "official website" not in g]
+        if not profile.website:
+            return
+        profile.identity_confirmed = True
+        # The first search can miss (a bare or generic query returns unrelated pages); this one found the company,
+        # so use its results for everything the first one could not provide instead of discarding them.
+        if found.knowledge_graph and not result.has_knowledge_graph:
+            result.kg_founded_year = self._apply_knowledge_graph(profile, found.knowledge_graph)
+            result.has_knowledge_graph = True
+        if not profile.products:
+            self._add_product_facts(profile, hits)
+        if not profile.overview:
+            self._build_overview(profile, hits, found.knowledge_graph)
+        profile.ambiguous = False
+        profile.gaps = [
+            g for g in profile.gaps
+            if "official website" not in g and "did not clearly identify" not in g and not (profile.overview and "no company overview" in g)
+        ]
 
     def add_funding(self, result: CompanyResult, step: PlannedSearch, *, refresh: bool = False) -> None:
         """Run the funding search and attach verbatim funding excerpts (with citations) to the profile."""
         profile = result.profile
         found = self._run(step, refresh)
-        candidates = [h for h in self._relevant_hits(profile.name, found.hits) if FUNDING_PATTERN.search(f"{h.title} {h.snippet}")]
+        candidates = [h for h in self._relevant_hits(profile.name, found.hits) if is_funding_fact(f"{h.title} {h.snippet}", profile.name)]
         for hit in candidates[:_MAX_FUNDING_FACTS]:
             item = self._store.add_hit(hit, f"Search result mentions funding or investment for {profile.name}")
             profile.funding.append(CompanyFact(text=truncate(hit.snippet or hit.title, 300), evidence_ids=[item.id]))
@@ -149,7 +218,7 @@ class CompanyAgent:
             text = truncate(item.snippet or item.title, 300)
             if len(profile.funding) >= _MAX_FUNDING_FACTS or text in seen:
                 continue
-            if mentions_company(f"{item.title} {item.snippet}", profile.name) and FUNDING_PATTERN.search(f"{item.title} {item.snippet}"):
+            if mentions_company(f"{item.title} {item.snippet}", profile.name) and is_funding_fact(f"{item.title} {item.snippet}", profile.name):
                 evidence = self._store.add_news(item, f"News coverage mentions funding or investment for {profile.name}")
                 profile.funding.append(CompanyFact(text=text, evidence_ids=[evidence.id]))
                 seen.add(text)
@@ -218,11 +287,23 @@ class CompanyAgent:
         year = _YEAR.search(founded)
         return int(year.group(0)) if year else None
 
+    def _descriptive_hits(self, hits: list[SearchHit]) -> list[SearchHit]:
+        """Results that can describe the business, best first: the employer's own about/company pages,
+        then other official pages, then everything else that is descriptive."""
+        def score(hit: SearchHit) -> int:
+            official = registered_domain(hit.url) in self._store.company_domains
+            return (
+                (2 if official else 0)
+                + (2 if _ABOUT_URL.search(hit.url) else 0)
+                + (2 if _PROFILE_URL.search(hit.url) else 0)
+                - (4 if _PROMO.search(hit.snippet) else 0)  # a storefront's ad copy is not a description of the business
+            )
+
+        return sorted((h for h in hits if is_descriptive(h)), key=score, reverse=True)  # stable within equal scores
+
     def _add_product_facts(self, profile: CompanyProfile, hits: list[SearchHit]) -> None:
-        """Snippets describing the company: official-site excerpts first, otherwise other relevant results."""
-        official = [h for h in hits if registered_domain(h.url) in self._store.company_domains and h.snippet]
-        pool = official or [h for h in hits if h.snippet]
-        for hit in pool[:_MAX_PRODUCT_FACTS]:
+        """Snippets describing the company, verbatim, best first (about/profile pages, then other official pages)."""
+        for hit in self._descriptive_hits(hits)[:_MAX_PRODUCT_FACTS]:
             item = self._store.add_hit(hit, f"Description of {profile.name}'s business found in search results")
             profile.products.append(CompanyFact(text=truncate(hit.snippet, 300), evidence_ids=[item.id]))
 
@@ -243,7 +324,8 @@ class CompanyAgent:
 
     def _llm_overview(self, profile: CompanyProfile) -> bool:
         excerpts = [(eid, self._store.get(eid)) for fact in profile.products for eid in fact.evidence_ids]
-        lines = [f"[{eid}] {item.evidence_text}" for eid, item in excerpts[:_MAX_LLM_EXCERPTS] if item]
+        # Marketing copy must not reach the model: it would restate "unbeatable prices" as if it were a fact.
+        lines = [f"[{eid}] {item.evidence_text}" for eid, item in excerpts[:_MAX_LLM_EXCERPTS] if item and not _PROMO.search(item.evidence_text)]
         if not lines:
             return False
         try:
@@ -251,8 +333,14 @@ class CompanyAgent:
         except ScoutLensError as exc:
             logger.info("LLM overview skipped: %s", exc)
             return False
-        checked = validate_prose(text, self._store)
-        if checked.is_empty or not is_neutral(checked.text):
+        name = profile.name
+        # Every sentence must be supported by the excerpt it cites AND be about the company itself; an
+        # otherwise well-formed sentence about a playlist or a login page is dropped.
+        checked = validate_prose(
+            text, self._store, min_grounding=_MIN_GROUNDING, ignore_words=set(normalize_company(name).split()),
+            keep_if=lambda sentence: mentions_company(sentence, name) or bool(_ABOUT_COMPANY_START.match(sentence)),
+        )
+        if checked.is_empty or not is_neutral(checked.text) or not mentions_company(checked.text, name):
             return False
         profile.overview, profile.overview_source = checked.text, "llm"
         profile.overview_evidence_ids = checked.evidence_ids

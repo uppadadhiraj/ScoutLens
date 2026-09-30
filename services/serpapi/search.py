@@ -10,7 +10,7 @@ from services.serpapi.parsing import as_dict, as_list, build_all, clean_text
 
 _KG_SKIP_KEYS = {
     "title", "type", "description", "website", "source", "kgmid", "knowledge_graph_search_link",
-    "serpapi_knowledge_graph_search_link", "header_images", "image", "thumbnail",
+    "serpapi_knowledge_graph_search_link", "header_images", "image", "thumbnail", "entity_type",
     # volatile or contact-detail attributes that are noise as "company facts"
     "sales", "customer_service", "phone", "stock_price", "hours", "reviews", "review_count",
 }

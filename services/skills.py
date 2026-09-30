@@ -144,7 +144,11 @@ _SKILLS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("Android", "framework", ("android", "android sdk")),
     ("iOS", "framework", ("cs:iOS",)),
     ("Blockchain", "practice", ("blockchain", "solidity", "web3")),
-    ("Cybersecurity", "practice", ("cybersecurity", "cyber security", "information security", "penetration testing", "appsec")),
+    ("Cybersecurity", "practice", (
+        "cybersecurity", "cyber security", "information security", "penetration testing", "appsec", "infosec",
+        "security engineering", "security architecture", "security architect", "application security", "cloud security",
+        "network security", "devsecops", "threat modeling", "threat modelling", "vulnerability management",
+    )),
     ("Salesforce", "tool", ("salesforce",)),
     ("SAP", "tool", ("cs:SAP",)),
 )
