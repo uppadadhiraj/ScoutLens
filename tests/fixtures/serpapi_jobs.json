@@ -1,0 +1,43 @@
+{
+  "search_metadata": {"id": "jobs123", "status": "Success"},
+  "jobs_results": [
+    {
+      "title": "Backend Engineer",
+      "company_name": "Northwind Labs",
+      "location": "Bengaluru, Karnataka, India",
+      "via": "via LinkedIn",
+      "description": "Build services in Python and FastAPI. You will work with PostgreSQL, Docker and AWS.",
+      "job_id": "job-1",
+      "share_link": "https://www.google.com/search?q=backend&ibp=htl;jobs#htivrt=jobs&htidocid=job-1",
+      "detected_extensions": {"posted_at": "3 days ago", "schedule_type": "Full-time", "salary": "₹12–18 LPA"},
+      "job_highlights": [
+        {"title": "Qualifications", "items": ["2+ years of Python", "Experience with SQL"]},
+        {"title": "Responsibilities", "items": ["Design REST APIs", "Own deployments"]},
+        {"title": "Benefits", "items": ["Health insurance"]}
+      ],
+      "apply_options": [
+        {"title": "Apply on Northwind Labs", "link": "https://www.northwindlabs.example/careers/backend"},
+        {"title": "Apply on LinkedIn", "link": "https://linkedin.com/jobs/view/1"}
+      ]
+    },
+    {
+      "title": "Software Engineer Intern",
+      "company_name": "Northwind Labs",
+      "location": "Remote",
+      "via": "via Northwind Labs Careers",
+      "description": "Python, SQL and Git. Freshers welcome.",
+      "job_id": "job-2",
+      "detected_extensions": {"schedule_type": "Internship", "work_from_home": true},
+      "share_link": "https://www.google.com/search?q=intern#htidocid=job-2"
+    },
+    {
+      "title": "Backend Engineer",
+      "company_name": "Northwind Labs",
+      "location": "Bengaluru, Karnataka, India",
+      "job_id": "job-1",
+      "description": "Duplicate of job-1 (same job_id) surfaced by another query."
+    },
+    {"company_name": "Northwind Labs", "description": "Missing title, must be dropped"}
+  ],
+  "serpapi_pagination": {"next_page_token": "TOKEN_PAGE_2"}
+}

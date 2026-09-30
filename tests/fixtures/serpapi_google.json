@@ -1,0 +1,32 @@
+{
+  "search_metadata": {"id": "abc123", "status": "Success"},
+  "knowledge_graph": {
+    "title": "Northwind Labs",
+    "type": "Software company",
+    "description": "Northwind Labs builds logistics optimisation software for retailers.",
+    "website": "https://www.northwindlabs.example",
+    "headquarters": "Bengaluru, India",
+    "founded": "2016",
+    "source": {"name": "Wikipedia", "link": "https://en.wikipedia.org/wiki/Northwind_Labs"},
+    "header_images": [{"image": "https://img.example/x.png"}],
+    "profiles": [{"name": "LinkedIn", "link": "https://linkedin.com/company/northwind"}]
+  },
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "Northwind Labs | Logistics optimisation software",
+      "link": "https://www.northwindlabs.example/",
+      "displayed_link": "https://www.northwindlabs.example",
+      "snippet": "Northwind Labs helps retailers plan routes and inventory."
+    },
+    {
+      "position": 2,
+      "title": "Careers at Northwind Labs",
+      "link": "https://www.northwindlabs.example/careers",
+      "snippet": "Join our engineering team.",
+      "date": "Sep 12, 2026"
+    },
+    {"position": 3, "title": "Result with no link", "snippet": "should be dropped"},
+    {"position": 4, "title": "Result with bad link", "link": "javascript:alert(1)"}
+  ]
+}
