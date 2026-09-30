@@ -118,3 +118,28 @@ def test_parsers_tolerate_empty_and_malformed_payloads():
     assert parse_jobs({}, "s") == []
     assert parse_news({"news_results": "not a list"}, "s") == []
     assert parse_google({"organic_results": [None, 5, "x"]}, "s").hits == []
+
+
+def test_documented_news_format_iso_date_wins_and_missing_snippet_is_fine():
+    from tests.conftest import load_fixture
+
+    (doc,) = parse_news(load_fixture("serpapi_news_documented"), "s3")
+    assert doc.published_at == datetime(2026, 1, 2, 15, 30, 13, tzinfo=timezone.utc)
+    assert doc.snippet == "" and doc.publisher == "Leadership Daily" and doc.date_text == "01/02/2026, 10:30 PM, +0700 +07"
+
+
+def test_documented_date_string_alone_is_parsed_with_its_utc_offset():
+    parsed = parse_news_date("01/02/2026, 10:30 PM, +0700 +07")
+    assert parsed == datetime(2026, 1, 2, 15, 30, tzinfo=timezone.utc)
+
+
+def test_unparseable_iso_date_falls_back_to_the_display_date():
+    payload = {"news_results": [{"title": "T", "link": "https://x.example/a", "iso_date": "not-a-date", "date": "3 days ago"}]}
+    (item,) = parse_news(payload, "s")
+    assert item.published_at is None and item.date_text == "3 days ago"
+
+
+def test_knowledge_graph_drops_noisy_contact_and_ticker_attributes(google_payload):
+    google_payload["knowledge_graph"].update({"sales": "1 (800) 692-7753", "stock_price": "AAPL $200", "customer_service": "1 (800)"})
+    kg = parse_google(google_payload, "s1").knowledge_graph
+    assert kg.attributes == {"headquarters": "Bengaluru, India", "founded": "2016"}

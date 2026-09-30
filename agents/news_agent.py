@@ -69,7 +69,7 @@ class NewsAgent:
 
     def _refine_with_llm(self, opp: OpportunityProfile, signal: NewsSignal) -> None:
         """One batched call: judge each item's relevance to the role. Anything invalid or non-neutral is ignored."""
-        listing = "\n".join(f"{i}. {n.title} — {n.summary}" for i, n in enumerate(signal.items))
+        listing = "\n".join(f"{i}. {n.title}" + (f" — {n.summary}" if n.summary else "") for i, n in enumerate(signal.items))
         try:
             result = self._llm.generate_structured(  # type: ignore[union-attr]
                 _Judgements,

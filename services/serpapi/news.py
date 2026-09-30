@@ -1,6 +1,7 @@
 """Google News via SerpApi: recent coverage of the organization."""
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -8,14 +9,32 @@ from models.search import NewsItem, SearchQuery
 from services.serpapi.client import SerpApiClient
 from services.serpapi.parsing import as_dict, as_list, build_all, clean_text
 
-# SerpApi's google_news engine formats dates like "09/29/2026, 01:32 PM, +0000 UTC".
-_DATE_FORMATS = ("%m/%d/%Y, %I:%M %p, %z UTC", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d")
+# SerpApi's google_news engine documents dates like "01/02/2026, 10:30 PM, +0700 +07" and also returns
+# an ``iso_date`` ("2026-01-02T15:30:13Z"), which is preferred.
+_DOC_DATE = re.compile(r"^(\d{1,2}/\d{1,2}/\d{4}), (\d{1,2}:\d{2} [AP]M), ([+-]\d{4})")
+_DATE_FORMATS = ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d")
+
+
+def parse_iso_date(text: str | None) -> datetime | None:
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def parse_news_date(text: str | None) -> datetime | None:
     """Parse an absolute date. Relative dates ("3 days ago") are kept as text, never guessed."""
     if not text:
         return None
+    match = _DOC_DATE.match(text)
+    if match:
+        try:
+            return datetime.strptime(", ".join(match.groups()), "%m/%d/%Y, %I:%M %p, %z")
+        except ValueError:
+            return None
     for fmt in _DATE_FORMATS:
         try:
             parsed = datetime.strptime(text, fmt)
@@ -35,7 +54,7 @@ def _news_item(search_id: str, item: dict[str, Any]) -> NewsItem:
         url=clean_text(item.get("link")) or "",
         publisher=publisher,
         date_text=date_text,
-        published_at=parse_news_date(date_text),
+        published_at=parse_iso_date(clean_text(item.get("iso_date"))) or parse_news_date(date_text),
         snippet=clean_text(item.get("snippet")) or "",
     )
 

@@ -248,3 +248,14 @@ def test_a_crashing_view_is_caught_by_the_router(app, monkeypatch):
     app.run()
     text = all_text(app)
     assert "Something went wrong while displaying this page" in text and "abc123" not in text and not app.exception
+
+
+def test_news_card_without_a_snippet_does_not_repeat_the_headline_as_a_fact():
+    from models.report import NewsHighlight
+
+    base = dict(title="Headline", url="https://x.example/n", publisher="Wire", topic="General coverage", relevance="low",
+                relevance_reason="General coverage of the company with no clear link to this role.", evidence_id="E1", tier=3)
+    without = c.news_card(NewsHighlight(summary="", **base))
+    with_snippet = c.news_card(NewsHighlight(summary="A snippet.", **base))
+    assert "Fact" not in without and "Interpretation" in without
+    assert "Fact" in with_snippet and "A snippet." in with_snippet

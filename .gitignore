@@ -14,7 +14,7 @@ venv/
 .coverage
 htmlcov/
 
-# Local data (demo fixtures under data/demo/ ARE tracked)
+# Local data (SQLite cache and history)
 data/*.db
 data/*.db-journal
 data/*.sqlite3

@@ -1,22 +1,31 @@
 {
-  "search_metadata": {"id": "news123", "status": "Success"},
+  "search_metadata": {
+    "id": "news123",
+    "status": "Success"
+  },
   "news_results": [
     {
       "position": 1,
       "title": "Northwind Labs raises Series B to expand logistics platform",
       "link": "https://news.example.com/northwind-series-b",
-      "source": {"name": "Example Business Daily"},
+      "source": {
+        "name": "Example Business Daily"
+      },
       "date": "09/29/2026, 08:07 AM, +0000 UTC",
       "snippet": "The Bengaluru-based company said the funds will go to product engineering."
     },
     {
       "position": 2,
-      "source": {"name": "Tech Wire"},
+      "source": {
+        "name": "Tech Wire"
+      },
       "stories": [
         {
           "title": "Northwind Labs launches route planner",
           "link": "https://techwire.example.com/route-planner",
-          "source": {"name": "Tech Wire"},
+          "source": {
+            "name": "Tech Wire"
+          },
           "date": "3 days ago"
         },
         {
@@ -27,6 +36,12 @@
         }
       ]
     },
-    {"position": 3, "title": "No link here", "source": {"name": "X"}}
+    {
+      "position": 3,
+      "title": "No link here",
+      "source": {
+        "name": "X"
+      }
+    }
   ]
 }

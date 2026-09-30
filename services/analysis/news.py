@@ -118,7 +118,7 @@ def analyze_news(
         evidence = store.add_news(item, f"Recent news coverage of {company}: {truncate(item.title, 90)}")
         signal.items.append(NewsHighlight(
             title=item.title, url=item.url, publisher=item.publisher, date_text=item.date_text,
-            published_at=item.published_at, summary=truncate(item.snippet or item.title, _SUMMARY_CHARS),
+            published_at=item.published_at, summary=truncate(item.snippet, _SUMMARY_CHARS),  # empty when Google gives no snippet
             topic=topic, relevance=level, relevance_reason=reason,  # type: ignore[arg-type]
             evidence_id=evidence.id, tier=evidence.tier,
         ))

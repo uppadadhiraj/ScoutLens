@@ -137,11 +137,11 @@ def skill_bars(freqs: list[SkillFrequency], limit: int = 10) -> str:
 def news_card(n: NewsHighlight) -> str:
     rel_kind = {"high": "ok", "medium": "info", "low": "muted"}[n.relevance]
     meta = " · ".join(x for x in (n.publisher, n.date_text) if x)
+    fact = f'{label("Fact")}<div class="sl-interp">{esc(n.summary)}</div>' if n.summary else ""
     return (
         f'<div class="sl-news"><div class="sl-news-t">{link(n.title, n.url)}</div>'
         f'<div class="sl-ev-meta">{tier_badge(n.tier, "Source tier")}{badge(n.topic, "violet")}{badge("relevance: " + n.relevance, rel_kind)} {esc(meta)}</div>'
-        f'{label("Fact")}<div class="sl-interp">{esc(n.summary)}</div>'
-        f'{label("Interpretation")}<div class="sl-interp">{esc(n.relevance_reason)}</div></div>'
+        f'{fact}{label("Interpretation")}<div class="sl-interp">{esc(n.relevance_reason)}</div></div>'
     )
 
 

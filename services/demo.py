@@ -197,18 +197,21 @@ def _pages(jobs: list[dict[str, Any]], sizes: tuple[int, ...]) -> list[dict[str,
 
 def _news(now: datetime) -> dict[str, Any]:
     def stamp(days: int) -> str:
-        return (now - timedelta(days=days)).strftime("%m/%d/%Y, %I:%M %p, +0000 UTC")
+        return (now - timedelta(days=days)).strftime("%m/%d/%Y, %I:%M %p, +0000 +00")
+
+    def iso(days: int) -> str:
+        return (now - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     return {"search_metadata": {"status": "Success"}, "news_results": [
         {"position": 1, "title": f"{COMPANY} raises Series B to expand its logistics platform", "link": "https://news.example/lumenpath-series-b",
-         "source": {"name": "Example Business Daily"}, "date": stamp(1),
+         "source": {"name": "Example Business Daily"}, "date": stamp(1), "iso_date": iso(1),
          "snippet": f"{COMPANY} said the funds will go to product engineering and a new Pune office."},
         {"position": 2, "title": f"{COMPANY} launches route planner for retailers", "link": "https://techwire.example/lumenpath-route-planner",
-         "source": {"name": "Tech Wire (demo)"}, "date": "3 days ago", "snippet": "The planner is built by the software engineering team in Bengaluru."},
+         "source": {"name": "Tech Wire (demo)"}, "date": "3 days ago"},  # real responses often carry no snippet
         {"position": 3, "title": f"{COMPANY} opens Pune engineering office", "link": "https://startuppost.example/lumenpath-pune",
          "source": {"name": "Startup Post (demo)"}, "date": "2 weeks ago", "snippet": "The company plans to hire interns and engineers in Pune."},
         {"position": 4, "title": "Logistics software startups to watch", "link": "https://news.example/logistics-watch",
-         "source": {"name": "Example Business Daily"}, "date": stamp(9), "snippet": "A roundup that does not mention the company in question."},
+         "source": {"name": "Example Business Daily"}, "date": stamp(9), "iso_date": iso(9), "snippet": "A roundup that does not mention the company in question."},
     ]}
 
 

@@ -1,0 +1,22 @@
+{
+  "search_metadata": {
+    "status": "Success"
+  },
+  "news_results": [
+    {
+      "position": 4,
+      "title": "Northwind Labs names new head of engineering",
+      "link": "https://leadership.example.com/northwind-head",
+      "source": {
+        "name": "Leadership Daily",
+        "icon": "https://x.example/i.png",
+        "authors": [
+          "A. Writer"
+        ]
+      },
+      "date": "01/02/2026, 10:30 PM, +0700 +07",
+      "iso_date": "2026-01-02T15:30:13Z",
+      "thumbnail": "https://x.example/t.png"
+    }
+  ]
+}
