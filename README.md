@@ -1,4 +1,4 @@
-# ScoutLens ðŸ”Ž
+# ScoutLens 🔎
 
 **Investigate the opportunity before you invest your time.**
 
@@ -15,7 +15,7 @@ ScoutLens is an AI-powered opportunity-investigation agent. Give it a job or int
 
 ## Contents
 
-[Problem](#problem) Â· [Solution](#solution) Â· [Features](#features) Â· [What you might have missed](#what-you-might-have-missed) Â· [Architecture](#architecture) Â· [SerpApi integration](#serpapi-integration) Â· [AI architecture](#ai-architecture) Â· [Evidence and honesty rules](#evidence-and-honesty-rules) Â· [Tech stack](#tech-stack) Â· [Installation](#installation) Â· [Environment variables](#environment-variables) Â· [Running](#running) Â· [Demo mode](#demo-mode) Â· [Testing](#testing) Â· [Privacy and security](#privacy-and-security) Â· [Project structure](#project-structure) Â· [Limitations](#limitations) Â· [Future improvements](#future-improvements) Â· [AI disclosure](#ai-disclosure)
+[Problem](#problem) · [Solution](#solution) · [Features](#features) · [What you might have missed](#what-you-might-have-missed) · [Architecture](#architecture) · [SerpApi integration](#serpapi-integration) · [AI architecture](#ai-architecture) · [Evidence and honesty rules](#evidence-and-honesty-rules) · [Tech stack](#tech-stack) · [Installation](#installation) · [Environment variables](#environment-variables) · [Running](#running) · [Demo mode](#demo-mode) · [Testing](#testing) · [Privacy and security](#privacy-and-security) · [Project structure](#project-structure) · [Limitations](#limitations) · [Future improvements](#future-improvements) · [AI disclosure](#ai-disclosure)
 
 ---
 
@@ -40,9 +40,9 @@ It informs your decision. It never tells you whether to apply.
 
 | | |
 |---|---|
-| **Opportunity extraction** | JSON-LD `JobPosting` â†’ HTML metadata â†’ text heuristics. Robots.txt-aware, SSRF-safe fetching. Manual paste fallback when a page can't be read. |
+| **Opportunity extraction** | JSON-LD `JobPosting` → HTML metadata → text heuristics. Robots.txt-aware, SSRF-safe fetching. Manual paste fallback when a page can't be read. |
 | **Company intelligence** | Official website (with the basis for that conclusion), knowledge-panel facts, verbatim product/funding excerpts, recent news, each with a source tier. |
-| **Hiring signals** | Skill frequencies across the employer's *other current listings*, computed only from collected data, with the sample size always shown ("Among the 18 listings analyzedâ€¦"). |
+| **Hiring signals** | Skill frequencies across the employer's *other current listings*, computed only from collected data, with the sample size always shown ("Among the 18 listings analyzed…"). |
 | **Opportunity vs. pattern** | Neutral comparison of experience, skills, location, work mode and salary against the employer's comparable listings. |
 | **Market skill signals** | "23 of 61 sampled listings mention Docker (37.7%)", from a role-level sample so the query can't inflate the number. |
 | **Personal fit** | Matched / partial / **not found in resume** / unknown, with the resume line that justifies each status. Resume parsed **locally**. |
@@ -57,11 +57,11 @@ It informs your decision. It never tells you whether to apply.
 
 The signature feature. Example (from the demo data):
 
-> ðŸ”Ž **Hiring Pattern**
+> 🔎 **Hiring Pattern**
 > **FACT** Docker appears in 7 of 18 sampled current listings from Lumenpath Labs (38.9%) but is not mentioned in this listing.
 > **INTERPRETATION** Skills used across the company's other roles may also matter for this team; the listing itself does not say.
 > **USER ACTION** Check whether Docker is used on this team.
-> *Sources: 7 job listings Â· E7 E8 E10 E11 E17 E21 E24*
+> *Sources: 7 job listings · E7 E8 E10 E11 E17 E21 E24*
 
 Other finding types: experience-requirement variation across comparable listings, recent relevant news, market demand for a skill missing from your resume, work-arrangement and salary differences, listing age, and application-deadline timing. A finding **cannot exist without evidence** (enforced by the data model), findings are varied (no five near-identical cards), and all wording is neutral by construction.
 
@@ -69,30 +69,30 @@ Other finding types: experience-requirement variation across comparable listings
 
 ```mermaid
 flowchart TD
-    UI["Streamlit UI<br/>Home Â· Investigation Â· Report Â· History"] --> P["Pipeline<br/>URL or pasted text Â· resume Â· preferences"]
-    P --> OA["Opportunity Agent<br/>fetch â†’ JSON-LD / HTML / text extraction"]
+    UI["Streamlit UI<br/>Home · Investigation · Report · History"] --> P["Pipeline<br/>URL or pasted text · resume · preferences"]
+    P --> OA["Opportunity Agent<br/>fetch → JSON-LD / HTML / text extraction"]
     P --> INV["Investigator (orchestrator)"]
     OA --> INV
     INV --> PL["Planner<br/>round-1 searches + adaptive follow-ups"]
-    PL --> CA["Company Agent<br/>identity Â· website Â· funding"]
-    PL --> HA["Hiring Agent<br/>related listings â†’ hiring signals"]
-    PL --> NA["News Agent<br/>relevance Â· topics"]
+    PL --> CA["Company Agent<br/>identity · website · funding"]
+    PL --> HA["Hiring Agent<br/>related listings → hiring signals"]
+    PL --> NA["News Agent<br/>relevance · topics"]
     PL --> MA["Market Agent<br/>role-level skill demand"]
-    CA & HA & NA & MA --> SC["SerpApi client<br/>cache Â· retries Â· error mapping"]
-    SC --> SERP[("SerpApi<br/>Google Search Â· Jobs Â· News")]
-    CA & HA & NA & MA --> EV["Evidence store<br/>tiers Â· citations Â· cross-checks"]
-    RA["Resume parser (local)<br/>â†’ skill matching"] --> INV
-    EV --> FR["Findings + Report Agent<br/>indicators Â· method Â· next actions"]
-    FR --> DB[("SQLite<br/>cache Â· history")]
+    CA & HA & NA & MA --> SC["SerpApi client<br/>cache · retries · error mapping"]
+    SC --> SERP[("SerpApi<br/>Google Search · Jobs · News")]
+    CA & HA & NA & MA --> EV["Evidence store<br/>tiers · citations · cross-checks"]
+    RA["Resume parser (local)<br/>→ skill matching"] --> INV
+    EV --> FR["Findings + Report Agent<br/>indicators · method · next actions"]
+    FR --> DB[("SQLite<br/>cache · history")]
     FR --> UI
-    LLM["LLMProvider<br/>Ollama Â· OpenAI-compatible Â· none"] -. optional, validated .-> CA & NA & PL
+    LLM["LLMProvider<br/>Ollama · OpenAI-compatible · none"] -. optional, validated .-> CA & NA & PL
 ```
 
 Investigation stages (each is a real operation, reported live in the UI in true execution order):
 
-`read â†’ plan â†’ identify â†’ hiring â†’ news â†’ follow-up â†’ resume â†’ market â†’ correlate â†’ report`
+`read → plan → identify → hiring → news → follow-up → resume → market → correlate → report`
 
-**Why not `URL â†’ scrape â†’ LLM â†’ summary`?** Because that has no evidence trail. Here the intelligence comes from *live search + evidence correlation + agent planning + user context*, and the LLM is an optional, validated enhancer, not the source of truth.
+**Why not `URL → scrape → LLM → summary`?** Because that has no evidence trail. Here the intelligence comes from *live search + evidence correlation + agent planning + user context*, and the LLM is an optional, validated enhancer, not the source of truth.
 
 ## SerpApi integration
 
@@ -101,7 +101,7 @@ SerpApi is the product's data source, not a badge. Three engines, each used beca
 | Engine | Used for | Evidence produced |
 |---|---|---|
 | **Google Search** (`google`) | Company identity: knowledge panel, official website, industry, product excerpts, funding coverage, follow-up "official website" search | Company facts, official-site sources, funding excerpts |
-| **Google Jobs** (`google_jobs`) | (a) the employer's other current listings â†’ **hiring signals**; (b) a **role-level market sample** (up to 3 pages) â†’ **market skill signals**; (c) cross-checking that *this* listing exists in an independent index | Job listings (each a citable source) |
+| **Google Jobs** (`google_jobs`) | (a) the employer's other current listings → **hiring signals**; (b) a **role-level market sample** (up to 3 pages) → **market skill signals**; (c) cross-checking that *this* listing exists in an independent index | Job listings (each a citable source) |
 | **Google News** (`google_news`) | Recent coverage of the employer, ranked by relevance and recency | News items with publisher and date |
 
 I deliberately did **not** add Scholar or Trends: they add no evidence for a job investigation.
@@ -110,7 +110,7 @@ How SerpApi is used well:
 
 - **Adaptive planning**: the funding search is skipped for established companies; an "official website" search runs only if the first search didn't establish one; job/news fallbacks run only when the first round found nothing. A budget caps follow-ups.
 - **Unbiased market sampling**: skill percentages come from a search on the *role title only*. Searching "Docker + role" would return listings that mention Docker by construction and inflate the percentage.
-- **Credit-aware**: read-through SQLite cache (TTL configurable), pagination via `next_page_token`, and the report shows how many searches were live vs cached. Typical investigation: **9â€“12 searches** (identity 1, funding 1, company jobs 2 pages, similar roles 1, news 1, market 3 pages, up to 3 follow-ups).
+- **Credit-aware**: read-through SQLite cache (TTL configurable), pagination via `next_page_token`, and the report shows how many searches were live vs cached. Typical investigation: **9–12 searches** (identity 1, funding 1, company jobs 2 pages, similar roles 1, news 1, market 3 pages, up to 3 follow-ups).
 - **Robust parsing**: response parsers follow SerpApi's documented formats (including `iso_date` for news and `next_page_token` pagination) and drop unusable items instead of crashing.
 - **Key safety**: `requests` puts `api_key` in the URL, and its exception text includes that URL, so every error path is redacted before it can be logged or shown.
 
@@ -123,22 +123,22 @@ A small set of single-purpose agents; no framework, no unnecessary complexity.
 | Component | Responsibility |
 |---|---|
 | **Opportunity Agent** | Fetch and extract a structured `OpportunityProfile` (unknown fields stay `None`; `field_sources` records provenance). |
-| **Investigation Planner** | Decides which searches are worth a credit; issues follow-ups from what was actually found. Optional LLM may propose â‰¤ 2 extra queries (validated: must name the company; deduplicated; capped). |
+| **Investigation Planner** | Decides which searches are worth a credit; issues follow-ups from what was actually found. Optional LLM may propose ≤ 2 extra queries (validated: must name the company; deduplicated; capped). |
 | **Company / Hiring / News / Market Agents** | Run searches and analyse results into typed models (`CompanyProfile`, `HiringSignal`, `NewsSignal`, `MarketAnalysis`). |
-| **Resume Agent** | Deterministic, local PDF â†’ `ResumeProfile` with skill provenance, then skill matching. |
+| **Resume Agent** | Deterministic, local PDF → `ResumeProfile` with skill provenance, then skill matching. |
 | **Evidence Store & cross-checks** | The only place `EvidenceItem`s are created; classifies sources; corroborates claims. |
-| **Report Agent** | Findings (max 5), indicators, method, neutral next actions â†’ `InvestigationReport`. |
-| **LLMProvider** | `Ollama`, `OpenAI-compatible` or `none`. Structured output is JSON â†’ **Pydantic-validated** with a bounded repair loop; nothing arbitrary is ever accepted. |
+| **Report Agent** | Findings (max 5), indicators, method, neutral next actions → `InvestigationReport`. |
+| **LLMProvider** | `Ollama`, `OpenAI-compatible` or `none`. Structured output is JSON → **Pydantic-validated** with a bounded repair loop; nothing arbitrary is ever accepted. |
 
-**Deterministic core, LLM as validated enhancer.** The complete report works with `LLM_PROVIDER=none`. When a model is available it may: write a company overview (every sentence must cite `[E#]` evidence; uncited or invalid-citation sentences are **dropped**), refine news relevance (one validated batch call), and suggest extra queries. Non-neutral wording ("scam", "you must learnâ€¦") is rejected by a language guard, and the deterministic text is used instead. **Your resume is never sent to a model.**
+**Deterministic core, LLM as validated enhancer.** The complete report works with `LLM_PROVIDER=none`. When a model is available it may: write a company overview (every sentence must cite `[E#]` evidence; uncited or invalid-citation sentences are **dropped**), refine news relevance (one validated batch call), and suggest extra queries. Non-neutral wording ("scam", "you must learn…") is rejected by a language guard, and the deterministic text is used instead. **Your resume is never sent to a model.**
 
 ## Evidence and honesty rules
 
 - **NO SOURCE = NO FACT.** Evidence items can only be created from objects SerpApi actually returned (search hit, job, news item, knowledge panel) or the listing page that was fetched. A `Finding` with no evidence fails validation. LLM prose is checked sentence by sentence against the store.
-- **Source tiers** are visible everywhere: **Tier 1** official company site/listing, government, university, primary research Â· **Tier 2** established news and industry publications, Google knowledge panel Â· **Tier 3** aggregators, forums, community-edited and unclassified sources. Unknown domains default to Tier 3.
+- **Source tiers** are visible everywhere: **Tier 1** official company site/listing, government, university, primary research · **Tier 2** established news and industry publications, Google knowledge panel · **Tier 3** aggregators, forums, community-edited and unclassified sources. Unknown domains default to Tier 3.
 - **Cross-checks** report `corroborated`, `single source`, `conflicting information` or `insufficient evidence`. They never say a claim is false.
 - **Neutral language** (test-enforced): "Potential discrepancy", "Unverified information", "Evidence requiring further verification". Never "scam", "fake", "definitely apply".
-- **"Not found in resume" â‰  "you don't know X."** Sparse resumes yield *unknown*, not *not found*.
+- **"Not found in resume" ≠ "you don't know X."** Sparse resumes yield *unknown*, not *not found*.
 - **No overall score.** Independent, measurable indicators instead: resume skill coverage (with the arithmetic), sampled listings, sources analysed, news items, evidence items by tier.
 - **Insufficient evidence** is stated explicitly instead of filling gaps.
 
@@ -183,11 +183,11 @@ Copy [`.env.example`](.env.example) to `.env` (git-ignored). Secrets are held as
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SERPAPI_KEY` | â€“ | Required for live investigations (not for the demo) |
+| `SERPAPI_KEY` | – | Required for live investigations (not for the demo) |
 | `SERPAPI_GL` / `SERPAPI_HL` / `SERPAPI_LOCATION` | `in` / `en` / `India` | Localisation of results |
 | `LLM_PROVIDER` | `ollama` | `ollama`, `openai` (any OpenAI-compatible API) or `none` |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | `http://localhost:11434` / `llama3.1:8b` | Local model |
-| `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI defaults | OpenAI-compatible provider (Groq, Together, LM Studio, vLLMâ€¦) |
+| `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI defaults | OpenAI-compatible provider (Groq, Together, LM Studio, vLLM…) |
 | `CACHE_TTL_HOURS` | `24` | SerpApi response cache lifetime (`0` disables) |
 | `MAX_RESUME_MB` | `5` | Upload size limit |
 | `DB_PATH` | `data/scoutlens.db` | SQLite file (use a local path if your project folder is cloud-synced) |
@@ -215,13 +215,13 @@ A 3-minute walkthrough:
 
 | Time | Show |
 |---|---|
-| 0:00â€“0:20 | The pitch: "Most job platforms tell you what the listing saysâ€¦" |
-| 0:20â€“0:40 | Paste a URL (or **Try the demo**), upload a resume |
-| 0:40â€“1:20 | Live investigation stages (each is a real operation, with real counts) |
-| 1:20â€“1:50 | **Company**, **Hiring & market** tabs |
-| 1:50â€“2:20 | **Overview â†’ What you might have missed** (the hero) |
-| 2:20â€“2:45 | **Personal fit** |
-| 2:45â€“3:00 | **Evidence & method**: sources, tiers, cross-checks, search log |
+| 0:00–0:20 | The pitch: "Most job platforms tell you what the listing says…" |
+| 0:20–0:40 | Paste a URL (or **Try the demo**), upload a resume |
+| 0:40–1:20 | Live investigation stages (each is a real operation, with real counts) |
+| 1:20–1:50 | **Company**, **Hiring & market** tabs |
+| 1:50–2:20 | **Overview → What you might have missed** (the hero) |
+| 2:20–2:45 | **Personal fit** |
+| 2:45–3:00 | **Evidence & method**: sources, tiers, cross-checks, search log |
 
 | | |
 |---|---|
@@ -239,7 +239,7 @@ pytest
 
 **525 tests, no network and no API key needed.** SerpApi is mocked with `responses` or replayed; a `ScriptedClient`/`ReplayClient` subclasses the real client so parameter building, caching and error handling are the production code paths. Coverage includes:
 
-extraction (JSON-LD, plain HTML, JS-only pages, blocked/login pages, manual paste), skill normalisation (`Java` â‰  `JavaScript`), resume parsing (real PDF bytes: encrypted, scanned, corrupt, oversized), SerpApi parsing and error mapping (invalid key, quota, timeout, empty results, key redaction), evidence validation and citation checking, hiring/market/fit calculations (including "no invented percentages" cases), report generation, **provenance tests asserting every cited URL and excerpt exists in the raw retrieved data**, language-neutrality of all generated text, partial-failure behaviour, HTML-escaping of untrusted content, and full UI flows through Streamlit's `AppTest`.
+extraction (JSON-LD, plain HTML, JS-only pages, blocked/login pages, manual paste), skill normalisation (`Java` ≠ `JavaScript`), resume parsing (real PDF bytes: encrypted, scanned, corrupt, oversized), SerpApi parsing and error mapping (invalid key, quota, timeout, empty results, key redaction), evidence validation and citation checking, hiring/market/fit calculations (including "no invented percentages" cases), report generation, **provenance tests asserting every cited URL and excerpt exists in the raw retrieved data**, language-neutrality of all generated text, partial-failure behaviour, HTML-escaping of untrusted content, and full UI flows through Streamlit's `AppTest`.
 
 ## Privacy and security
 
@@ -255,29 +255,29 @@ extraction (JSON-LD, plain HTML, JS-only pages, blocked/login pages, manual past
 
 ```
 scoutlens/
-â”œâ”€â”€ app.py                  # entry point + tiny router
-â”œâ”€â”€ config.py               # typed settings (.env)
-â”œâ”€â”€ agents/                 # opportunity, planner, company, hiring, news, market, report, investigator
-â”œâ”€â”€ services/
-â”‚   â”œâ”€â”€ serpapi/            # client, search, jobs, news (+ parsing)
-â”‚   â”œâ”€â”€ scraping/           # SSRF-safe fetcher, JSON-LD, HTMLâ†’text, field parsers, extractor
-â”‚   â”œâ”€â”€ llm/                # LLMProvider, Ollama, OpenAI-compatible, factory
-â”‚   â”œâ”€â”€ resume/             # local PDF parsing, skill matching
-â”‚   â”œâ”€â”€ evidence/           # store, source tiers, citations, cross-checks
-â”‚   â”œâ”€â”€ analysis/           # hiring, market, news, findings
-â”‚   â”œâ”€â”€ cache/              # SQLite: search cache, investigation history
-â”‚   â”œâ”€â”€ skills.py           # skill taxonomy and normalisation
-â”‚   â”œâ”€â”€ pipeline.py         # inputs â†’ report (used by the UI)
-â”‚   â””â”€â”€ demo.py             # synthetic demo dataset + replay client
-â”œâ”€â”€ models/                 # Pydantic models: opportunity, search, evidence, company, resume, report, plan
-â”œâ”€â”€ ui/                     # views + design system (not `pages/`, to avoid Streamlit's auto-nav)
-â”œâ”€â”€ utils/                  # errors, URL safety, domains, text, redaction, language guard
-â”œâ”€â”€ tests/                  # 525 tests + fixtures
-â”œâ”€â”€ scripts/                # screenshot capture (optional)
-â”œâ”€â”€ docs/screenshots/
-â”œâ”€â”€ data/                   # local SQLite files (git-ignored)
-â”œâ”€â”€ .env.example
-â””â”€â”€ requirements.txt
+├── app.py                  # entry point + tiny router
+├── config.py               # typed settings (.env)
+├── agents/                 # opportunity, planner, company, hiring, news, market, report, investigator
+├── services/
+│   ├── serpapi/            # client, search, jobs, news (+ parsing)
+│   ├── scraping/           # SSRF-safe fetcher, JSON-LD, HTML→text, field parsers, extractor
+│   ├── llm/                # LLMProvider, Ollama, OpenAI-compatible, factory
+│   ├── resume/             # local PDF parsing, skill matching
+│   ├── evidence/           # store, source tiers, citations, cross-checks
+│   ├── analysis/           # hiring, market, news, findings
+│   ├── cache/              # SQLite: search cache, investigation history
+│   ├── skills.py           # skill taxonomy and normalisation
+│   ├── pipeline.py         # inputs → report (used by the UI)
+│   └── demo.py             # synthetic demo dataset + replay client
+├── models/                 # Pydantic models: opportunity, search, evidence, company, resume, report, plan
+├── ui/                     # views + design system (not `pages/`, to avoid Streamlit's auto-nav)
+├── utils/                  # errors, URL safety, domains, text, redaction, language guard
+├── tests/                  # 525 tests + fixtures
+├── scripts/                # screenshot capture (optional)
+├── docs/screenshots/
+├── data/                   # local SQLite files (git-ignored)
+├── .env.example
+└── requirements.txt
 ```
 
 ## Limitations
