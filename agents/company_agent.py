@@ -23,7 +23,7 @@ from services.serpapi.search import GoogleResults, fetch_google
 from utils.domains import is_job_board_or_ats, origin_of, registered_domain
 from utils.errors import ScoutLensError
 from utils.language_guard import is_neutral
-from utils.text import mentions_company, normalize_company, truncate
+from utils.text import GENERIC_TRAILING_WORDS, mentions_company, normalize_company, truncate
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +57,6 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
-_GENERIC_TRAILING_WORDS = {
-    "labs", "lab", "technologies", "technology", "tech", "software", "systems", "solutions", "group",
-    "digital", "analytics", "networks", "innovations", "ai", "io",
-}
-
-
 def _domain_matches_company(url: str, company: str) -> bool:
     """Whether the URL's registered-domain label *is* the company's name.
 
@@ -75,7 +69,7 @@ def _domain_matches_company(url: str, company: str) -> bool:
     if not label or not words:
         return False
     accepted = {_slug("".join(words))}
-    if len(words) > 1 and words[-1] in _GENERIC_TRAILING_WORDS:
+    if len(words) > 1 and words[-1] in GENERIC_TRAILING_WORDS:
         accepted.add(_slug("".join(words[:-1])))
     return label in accepted
 
