@@ -159,7 +159,7 @@ A small set of single-purpose agents; no framework, no unnecessary complexity.
 Requirements: **Python 3.11+** and a [SerpApi key](https://serpapi.com/manage-api-key) (free tier works; not needed for the demo).
 
 ```bash
-git clone <your-repo-url> scoutlens
+git clone https://github.com/uppadadhiraj/ScoutLens.git scoutlens
 cd scoutlens
 
 # create and activate a virtual environment
