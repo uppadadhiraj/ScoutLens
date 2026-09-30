@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, computed_field
 from models.company import CompanyProfile
 from models.evidence import EvidenceItem
 from models.opportunity import OpportunityProfile
+from models.preferences import UserPreferences
 from models.resume import FitSummary, ResumeProfile
 from models.search import SearchRecord
 
@@ -250,6 +251,7 @@ class InvestigationReport(BaseModel):
     news: NewsSignal | None = None
     market: MarketAnalysis | None = None
     resume: ResumeProfile | None = None
+    preferences: UserPreferences | None = None
     fit: FitSummary | None = None
 
     findings: list[Finding] = Field(default_factory=list)

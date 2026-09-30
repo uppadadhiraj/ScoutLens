@@ -210,3 +210,13 @@ def test_llm_unavailable_leaves_deterministic_results(settings, steps, news_payl
     agent, _ = _agent(settings, {("google_news", CO): news_payload}, FakeLLM(available=False))
     signal, _ = agent.investigate(OPP, steps)
     assert len(signal.items) == 3 and signal.items[0].relevance == "medium"
+
+
+def test_expansion_topics_with_words_between_verb_and_place():
+    assert classify_topic("Northwind Labs opens Pune engineering office") == "Expansion & hiring"
+    assert classify_topic("The company plans to hire interns") == "Expansion & hiring"
+
+
+def test_plural_role_terms_still_count_as_a_role_link():
+    signal, _, _ = run([news("Northwind Labs is recruiting", snippet="It plans to add software engineers this year.")])
+    assert signal.items[0].relevance == "high"

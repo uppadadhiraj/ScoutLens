@@ -234,3 +234,10 @@ def test_agent_propagates_fatal_errors(settings, market_step):
     client = ScriptedClient(settings, errors={("google_jobs", ROLE): SerpApiError(kind="rate_limited")})
     with pytest.raises(SerpApiError):
         MarketAgent(client, EvidenceStore(OPP.company_name)).investigate(OPP, market_step)
+
+
+def test_skills_already_on_the_resume_are_not_called_a_preparation_area():
+    text, action = interpret("Python", 72.1, "matched")
+    assert text == "Python appears frequently in the sampled listings, and it is on your resume." and action is None
+    assert "preparation area" not in text
+    assert "preparation area" in interpret("Docker", 37.7, "not_found")[0]

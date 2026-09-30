@@ -209,7 +209,8 @@ def add_self_reported_skills(profile: ResumeProfile, skills: list[str]) -> Resum
             continue
         evidence = SkillEvidence(section="Preferences", snippet="Entered by you")
         if name in existing:
-            existing[name].evidence.append(evidence)
+            if not any(e.section == "Preferences" for e in existing[name].evidence):  # idempotent on refresh
+                existing[name].evidence.append(evidence)
             if existing[name].rank < _RANK["self_reported"]:
                 existing[name].level = "self_reported"
         else:

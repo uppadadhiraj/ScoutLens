@@ -30,7 +30,9 @@ MAX_IDS_PER_SIGNAL = 12
 
 def interpret(skill: str, percent: float, resume_status: str | None) -> tuple[str, str | None]:
     """Neutral interpretation (and optional action) for a skill's share of the sample."""
-    if percent >= FREQUENT_PERCENT:
+    if percent >= FREQUENT_PERCENT and resume_status == "matched":
+        text = f"{skill} appears frequently in the sampled listings, and it is on your resume."
+    elif percent >= FREQUENT_PERCENT:
         text = f"{skill} appears frequently enough in the sampled listings to consider it a useful preparation area."
     elif percent >= MINORITY_PERCENT:
         text = f"{skill} appears in a minority of the sampled listings."

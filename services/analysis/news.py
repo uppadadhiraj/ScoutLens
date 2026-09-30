@@ -31,7 +31,7 @@ _TOPICS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("Funding & investment", r"\bfunding\b|\braises?\b|\braised\b|series [a-f]\b|seed round|investors?\b|valuation|\bipo\b|acqui(?:red|sition|res)"),
         ("Product & launches", r"\blaunch|unveil|introduc|new product|\breleases?\b|rolls? out|debut"),
         ("Partnerships", r"partner|collaborat|tie-?up|alliance|joins? forces"),
-        ("Expansion & hiring", r"expan|\bhiring\b|\bhires\b|new office|opens? (?:a |its )?(?:new )?(?:office|centre|center)|headcount|recruit"),
+        ("Expansion & hiring", r"expan|\bhir(?:e|es|ing)\b|new office|\bopens?\b[^.]{0,40}\b(?:office|centre|center|campus)\b|headcount|recruit"),
         ("Leadership", r"appoint|names? (?:a )?new|\bceo\b|\bcto\b|\bcfo\b|\bchief\b|steps? down|resign"),
     )
 )
@@ -66,7 +66,7 @@ def role_terms(opp: OpportunityProfile) -> set[str]:
 
 def _relevance(topic: str, text: str, terms: set[str]) -> tuple[str, str]:
     lowered = text.lower()
-    hit = next((t for t in sorted(terms) if re.search(rf"(?<![a-z0-9]){re.escape(t)}(?![a-z0-9])", lowered)), None)
+    hit = next((t for t in sorted(terms) if re.search(rf"(?<![a-z0-9]){re.escape(t)}s?(?![a-z0-9])", lowered)), None)
     if hit:
         return "high", f"Mentions '{hit}', which appears in this role's title or requirements."
     if topic != _NO_TOPIC:

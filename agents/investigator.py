@@ -134,6 +134,7 @@ class Investigator:
         on_progress: ProgressCallback | None = None,
         is_demo: bool = False,
         now: datetime | None = None,
+        announce_read: bool = True,
     ) -> InvestigationReport:
         if not opp.is_investigable:
             raise ScoutLensError("A company name is needed to investigate this opportunity. Please enter it.")
@@ -146,7 +147,8 @@ class Investigator:
         self._build_agents(state, llm)
         planner = InvestigationPlanner(self._settings, llm)
 
-        self._emit(state, "read", "done", f"{opp.role_title or 'Role'} at {opp.company_name}")
+        if announce_read:  # the pipeline reports this stage itself when it performs the fetch
+            self._emit(state, "read", "done", f"{opp.role_title or 'Role'} at {opp.company_name}")
         self._stage(state, "plan", lambda: self._plan(state, planner), needs_search=False)
         self._stage(state, "identify", lambda: self._identify(state), fatal_raises=True)
         self._stage(state, "hiring", lambda: self._hiring(state))
@@ -369,6 +371,7 @@ class Investigator:
             news=state.news,
             market=state.market,
             resume=state.resume,
+            preferences=state.prefs,
             fit=state.fit,
             findings=state.findings,
             crosschecks=state.crosschecks,
