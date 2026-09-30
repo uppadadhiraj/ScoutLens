@@ -104,7 +104,13 @@ def _match_one(skill: str, requirement: str, resume: ResumeProfile) -> SkillMatc
             skill=skill, requirement=requirement, status="unknown",  # type: ignore[arg-type]
             basis=f"Resume text was too limited to tell (only {len(resume.skills)} skill(s) detected)",
         )
-    return SkillMatch(skill=skill, requirement=requirement, status="not_found", basis="Not found in resume")  # type: ignore[arg-type]
+    where = "the skills you entered" if resume.source == "entered" else "resume"
+    return SkillMatch(skill=skill, requirement=requirement, status="not_found", basis=f"Not found in {where}")  # type: ignore[arg-type]
+
+
+def match_single(skill: str, resume: ResumeProfile, requirement: str = "preferred") -> SkillMatch:
+    """Compare one skill (e.g. one seen in the market) with the resume."""
+    return _match_one(skill, requirement, resume)
 
 
 def _count(matches: list[SkillMatch], status: str, *, required_only: bool = False) -> int:
@@ -140,6 +146,8 @@ def match_skills(opp: OpportunityProfile, resume: ResumeProfile) -> FitSummary:
 
 def _context(opp: OpportunityProfile, resume: ResumeProfile) -> list[str]:
     """Side-by-side facts (no judgement) for dimensions that are not skills."""
+    if resume.source != "pdf":
+        return []  # only typed-in skills: there is no resume text to set beside the listing
     lines = []
     if opp.experience_required:
         stated = format_experience(opp.experience_min_years, opp.experience_max_years)

@@ -10,6 +10,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field
 
+from models.company import CompanyProfile
+from models.evidence import EvidenceItem
+from models.opportunity import OpportunityProfile
+from models.resume import FitSummary, ResumeProfile
+from models.search import SearchRecord
+
 # -------------------------------------------------------------------------- market
 
 class MarketSignal(BaseModel):
@@ -19,7 +25,8 @@ class MarketSignal(BaseModel):
     count: int = Field(ge=0)
     total: int = Field(ge=0)
     scope: Literal["in_listing", "adjacent"]  # named by this listing, or common in the sample but not named
-    missing_from_resume: bool | None = None  # ``None`` when no resume was supplied
+    resume_status: Literal["matched", "partial", "not_found", "unknown"] | None = None  # ``None``: no resume supplied
+    missing_from_resume: bool | None = None  # True for not_found/partial; ``None`` when unknown or no resume
     statement: str  # FACT
     interpretation: str  # neutral INTERPRETATION
     action: str | None = None
@@ -143,3 +150,115 @@ class HiringSignal(BaseModel):
     @property
     def has_data(self) -> bool:
         return self.sample_size > 0
+
+
+# ------------------------------------------------------- findings and cross-checks
+
+FindingKind = Literal[
+    "volume", "listing", "skills", "experience", "location", "work_mode", "salary",
+    "news", "funding", "market", "freshness", "deadline",
+]
+
+
+class Finding(BaseModel):
+    """One item of "What you might have missed". FACT / INTERPRETATION / ACTION stay separate, and a
+    finding without evidence cannot exist (NO SOURCE = NO FACT)."""
+
+    kind: FindingKind
+    icon: str
+    title: str
+    fact: str
+    interpretation: str
+    action: str | None = None
+    evidence_ids: list[str] = Field(min_length=1)
+    sources_summary: str
+    strength: float = 0.0  # internal ordering only; never displayed as a score
+
+
+class CrossCheck(BaseModel):
+    """Whether an important claim is supported by more than one independent signal."""
+
+    claim: str
+    status: Literal["corroborated", "single_source", "conflicting", "insufficient"]
+    detail: str
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------- the report
+
+class InvestigationMethod(BaseModel):
+    """Everything needed to show that the data is live and how it was gathered."""
+
+    started_at: datetime
+    finished_at: datetime | None = None
+    displayed_time: str = ""  # e.g. "2026-09-30 16:32 IST"
+    searches: list[SearchRecord] = Field(default_factory=list)
+    apis_used: list[str] = Field(default_factory=list)
+    company_listings_analyzed: int = 0  # other listings from the same employer
+    market_listings_analyzed: int = 0  # role-level sample (may overlap with the above; reported separately)
+    news_results_analyzed: int = 0
+    sources_retained: int = 0
+    refreshed: bool = False
+    llm: str | None = None  # provider/model if one contributed, else None
+    llm_used_for: list[str] = Field(default_factory=list)
+    plan_notes: list[str] = Field(default_factory=list)
+
+    @property
+    def job_listings_analyzed(self) -> int:
+        return self.company_listings_analyzed + self.market_listings_analyzed
+
+    @property
+    def searches_performed(self) -> int:
+        return len(self.searches)
+
+    @property
+    def searches_live(self) -> int:
+        return sum(1 for s in self.searches if not s.from_cache and not s.error)
+
+    @property
+    def searches_cached(self) -> int:
+        return sum(1 for s in self.searches if s.from_cache)
+
+    @property
+    def searches_failed(self) -> int:
+        return sum(1 for s in self.searches if s.error)
+
+
+class Indicator(BaseModel):
+    """An independent, measurable indicator. ScoutLens deliberately has no overall score."""
+
+    label: str
+    value: str
+    detail: str = ""
+
+
+class NextAction(BaseModel):
+    text: str
+    reason: str = ""
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class InvestigationReport(BaseModel):
+    id: str
+    created_at: datetime
+    status: Literal["complete", "partial"] = "complete"
+    is_demo: bool = False
+
+    opportunity: OpportunityProfile
+    company: CompanyProfile | None = None
+    hiring: HiringSignal | None = None
+    news: NewsSignal | None = None
+    market: MarketAnalysis | None = None
+    resume: ResumeProfile | None = None
+    fit: FitSummary | None = None
+
+    findings: list[Finding] = Field(default_factory=list)
+    crosschecks: list[CrossCheck] = Field(default_factory=list)
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    indicators: list[Indicator] = Field(default_factory=list)
+    next_actions: list[NextAction] = Field(default_factory=list)
+    method: InvestigationMethod
+    warnings: list[str] = Field(default_factory=list)  # partial failures, unavailable components
+
+    def evidence_by_id(self) -> dict[str, EvidenceItem]:
+        return {e.id: e for e in self.evidence}

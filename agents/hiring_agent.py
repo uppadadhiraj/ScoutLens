@@ -21,6 +21,8 @@ class HiringAgent:
         self._client = client
         self._store = store
         self.errors: list[str] = []  # non-fatal failures, surfaced as report warnings
+        self._listings: list[JobListing] = []  # accumulated across rounds (initial searches + fallbacks)
+        self._search_ids: list[str] = []
 
     def collect(self, steps: list[PlannedSearch], *, refresh: bool = False) -> tuple[list[JobListing], list[str]]:
         """Run each job search; returns ``(listings, ids of the searches that were executed)``.
@@ -47,7 +49,10 @@ class HiringAgent:
     def investigate(
         self, opp: OpportunityProfile, steps: list[PlannedSearch], *, refresh: bool = False
     ) -> HiringSignal:
+        """Run ``steps`` and analyse everything collected so far (safe to call again with follow-up steps)."""
         listings, search_ids = self.collect(steps, refresh=refresh)
-        signal = analyze_hiring(opp, listings, self._store, search_ids=search_ids)
+        self._listings += listings
+        self._search_ids += search_ids
+        signal = analyze_hiring(opp, self._listings, self._store, search_ids=self._search_ids)
         signal.notes.extend(self.errors)
         return signal

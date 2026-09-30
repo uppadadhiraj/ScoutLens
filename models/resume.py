@@ -34,6 +34,7 @@ class ResumeEntry(BaseModel):
 
 
 class ResumeProfile(BaseModel):
+    source: Literal["pdf", "entered"] = "pdf"  # "entered" = only the skills typed into the preferences form
     name: str | None = None
     education: list[str] = Field(default_factory=list)
     skills: list[ResumeSkill] = Field(default_factory=list)

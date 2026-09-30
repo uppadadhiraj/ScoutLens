@@ -75,12 +75,14 @@ def test_skill_levels_reflect_where_it_was_found(profile):
     assert profile.skill("Python").level == "listed"
     assert profile.skill("AWS").level == "used"  # experience + certification, not in the skills section
     assert profile.skill("Redis").level == "used"
-    assert profile.skill("Machine Learning").level == "used"
+    # a course certificate shows learning, not application, so it is only a mention
+    assert profile.skill("Machine Learning").level == "mentioned"
 
 
 def test_skill_evidence_shows_where(profile):
     aws = profile.skill("AWS")
     assert {e.section for e in aws.evidence} == {"Experience", "Certifications"}
+    assert aws.level == "used"  # the strongest evidence wins
     assert any("deployed on AWS" in e.snippet for e in aws.evidence)
     pg = profile.skill("PostgreSQL")
     assert pg.level == "listed" and {"Skills", "Projects"} <= {e.section for e in pg.evidence}

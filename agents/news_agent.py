@@ -38,6 +38,9 @@ class NewsAgent:
         self._store = store
         self._llm = llm
         self.errors: list[str] = []
+        self.llm_applied = False  # whether the LLM's relevance judgements were used
+        self._items: list[NewsItem] = []  # accumulated across rounds (initial search + fallbacks)
+        self._search_ids: list[str] = []
 
     def investigate(
         self, opp: OpportunityProfile, steps: list[PlannedSearch], *, max_items: int = 8, refresh: bool = False
@@ -56,7 +59,9 @@ class NewsAgent:
             finally:
                 search_ids += [r.id for r in self._client.records[before:]]
                 self._store.register_searches(self._client.records)
-        signal, relevant = analyze_news(opp, items, self._store, search_ids=search_ids, max_items=max_items)
+        self._items += items
+        self._search_ids += search_ids
+        signal, relevant = analyze_news(opp, self._items, self._store, search_ids=self._search_ids, max_items=max_items)
         signal.notes.extend(self.errors)
         if self._llm and signal.items:
             self._refine_with_llm(opp, signal)
@@ -85,5 +90,6 @@ class NewsAgent:
             item.relevance, item.relevance_reason = judgement.relevance, judgement.why.strip()
             applied += 1
         if applied:
+            self.llm_applied = True
             rank = {"high": 0, "medium": 1, "low": 2}
             signal.items.sort(key=lambda n: rank[n.relevance])  # stable: keeps recency order within a level

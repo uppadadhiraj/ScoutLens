@@ -118,6 +118,19 @@ class CompanyAgent:
             profile.gaps.append("Insufficient evidence: no company overview was found in the retrieved results.")
         return CompanyResult(profile=profile, kg_founded_year=kg_year, has_knowledge_graph=kg is not None, relevant_hits=hits)
 
+    def retry_website(self, result: CompanyResult, opp: OpportunityProfile, step: PlannedSearch, *, refresh: bool = False) -> None:
+        """A dedicated "official website" search for when the first search did not establish one."""
+        profile = result.profile
+        if profile.website:
+            return
+        found = self._run(step, refresh)
+        hits = self._relevant_hits(profile.name, found.hits)
+        result.relevant_hits = [*result.relevant_hits, *(h for h in hits if h not in result.relevant_hits)]
+        self._establish_website(profile, opp, found.knowledge_graph, hits)
+        if profile.website:
+            profile.identity_confirmed = True
+            profile.gaps = [g for g in profile.gaps if "official website" not in g]
+
     def add_funding(self, result: CompanyResult, step: PlannedSearch, *, refresh: bool = False) -> None:
         """Run the funding search and attach verbatim funding excerpts (with citations) to the profile."""
         profile = result.profile

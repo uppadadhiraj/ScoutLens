@@ -8,8 +8,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from datetime import datetime
+
 from models.common import utcnow
 from models.evidence import EvidenceItem, Level, SourceType, Stance
+from models.opportunity import OpportunityProfile
 from models.search import JobListing, KnowledgeGraph, NewsItem, SearchHit, SearchRecord
 from services.evidence.source_quality import assess_confidence, classify_source
 from utils.domains import host_of, registered_domain
@@ -111,6 +114,25 @@ class EvidenceStore:
             relevance="high", stance="supporting", search_id=kg.search_id,
         )
 
+    def add_opportunity(self, opp: OpportunityProfile, claim: str = "The supplied listing") -> EvidenceItem | None:
+        """Cite the listing page that was actually fetched. Pasted text has no URL, so it cannot be cited."""
+        if opp.extraction_method == "manual" or not opp.source_url:
+            return None
+        title = f"{opp.role_title or 'Job listing'} — {opp.company_name}" if opp.company_name else (opp.role_title or "Job listing")
+        return self._add(
+            claim=claim, title=title, url=opp.source_url, kind="job", publisher=host_of(opp.source_url) or None,
+            date=opp.date_posted, text=opp.description or title, relevance="high", stance="supporting",
+            search_id="page", retrieved_at=opp.extracted_at,
+        )
+
+    def upgrade_confidence(self, ids: Iterable[str]) -> None:
+        """Raise confidence one level for items whose claim was corroborated by independent signals."""
+        order: list[Level] = ["low", "medium", "high"]
+        for evidence_id in ids:
+            item = self._items.get(evidence_id)
+            if item and item.confidence != "high":
+                item.confidence = order[order.index(item.confidence) + 1]
+
     # --------------------------------------------------------------- internals
 
     def _relevance(self, title: str, body: str | None) -> Level:
@@ -127,7 +149,7 @@ class EvidenceStore:
 
     def _add(
         self, *, claim: str, title: str, url: str, kind: SourceType, publisher: str | None, date: str | None,
-        text: str, relevance: Level, stance: Stance, search_id: str,
+        text: str, relevance: Level, stance: Stance, search_id: str, retrieved_at: datetime | None = None,
     ) -> EvidenceItem:
         key = (url, claim)
         if key in self._by_key:
@@ -150,7 +172,7 @@ class EvidenceStore:
             tier=quality.tier,  # type: ignore[arg-type]
             tier_label=quality.label,
             search_id=search_id,
-            retrieved_at=record.fetched_at if record else utcnow(),
+            retrieved_at=retrieved_at or (record.fetched_at if record else utcnow()),
         )
         self._items[item.id] = item
         self._by_key[key] = item.id

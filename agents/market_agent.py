@@ -6,7 +6,7 @@ import logging
 from models.opportunity import OpportunityProfile
 from models.plan import PlannedSearch
 from models.report import MarketAnalysis
-from models.resume import FitSummary
+from models.resume import ResumeProfile
 from services.analysis.market import analyze_market
 from services.evidence.store import EvidenceStore
 from services.serpapi.client import SerpApiClient
@@ -27,7 +27,7 @@ class MarketAgent:
         opp: OpportunityProfile,
         step: PlannedSearch,
         *,
-        fit: FitSummary | None = None,
+        resume: ResumeProfile | None = None,
         refresh: bool = False,
     ) -> MarketAnalysis:
         """Fatal SerpApi errors propagate; other failures yield an analysis that says the sample is missing."""
@@ -46,7 +46,7 @@ class MarketAgent:
             self._store.register_searches(self._client.records)
         analysis = analyze_market(
             opp, listings, self._store, role_query=step.query.q,
-            location=step.query.location or self._default_location, fit=fit, search_ids=search_ids,
+            location=step.query.location or self._default_location, resume=resume, search_ids=search_ids,
         )
         if failure:
             analysis.notes.append(failure)

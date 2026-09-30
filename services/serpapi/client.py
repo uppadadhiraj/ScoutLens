@@ -82,9 +82,7 @@ class SerpApiClient:
             data = self._from_cache(cache_key, refresh, record)
             if data is None:
                 if not api_key:
-                    raise SerpApiError(
-                        "SerpApi is not configured. Add SERPAPI_KEY to your .env file.", kind="no_key"
-                    )
+                    raise SerpApiError(kind="no_key")
                 data = self._request(params, api_key)
                 record.fetched_at = utcnow()
                 if self._cache:
@@ -150,11 +148,7 @@ class SerpApiClient:
                 timeout=self._settings.serpapi_timeout,
             )
         except requests.Timeout as exc:
-            raise SerpApiError(
-                "SerpApi took too long to respond. Try again in a moment.",
-                kind="timeout",
-                detail=redact_secrets(str(exc), [api_key]),
-            ) from None
+            raise SerpApiError(kind="timeout", detail=redact_secrets(str(exc), [api_key])) from None
         except requests.RequestException as exc:
             raise SerpApiError(
                 detail=redact_secrets(str(exc), [api_key]), kind="network"
@@ -172,32 +166,18 @@ class SerpApiClient:
             message = redact_secrets(str(payload.get("error", "")), [api_key])
 
         if status in (401, 403) or "invalid api key" in message.lower():
-            raise SerpApiError(
-                "SerpApi rejected the API key. Check SERPAPI_KEY in your .env file.",
-                kind="invalid_key",
-                detail=message,
-            )
+            raise SerpApiError(kind="invalid_key", detail=message)
         if status == 429 or any(t in message.lower() for t in ("run out of searches", "rate limit", "quota")):
-            raise SerpApiError(
-                "SerpApi rate limit or search quota reached. Wait a moment or check your plan.",
-                kind="rate_limited",
-                detail=message,
-            )
+            raise SerpApiError(kind="rate_limited", detail=message)
         if status >= 500:
-            raise SerpApiError(
-                "SerpApi is temporarily unavailable.", kind="server_error", detail=f"HTTP {status}"
-            )
+            raise SerpApiError(kind="server_error", detail=f"HTTP {status}")
         if not isinstance(payload, dict):
-            raise SerpApiError(
-                "SerpApi returned an unreadable response.", kind="bad_response", detail=f"HTTP {status}"
-            )
+            raise SerpApiError(kind="bad_response", detail=f"HTTP {status}")
         if message:
             # "Google hasn't returned any results for this query." is an empty result, not a failure.
             if "hasn't returned any results" in message.lower():
                 return {k: v for k, v in payload.items() if k != "error"}
-            raise SerpApiError(
-                "SerpApi could not complete the search.", kind="api_error", detail=message
-            )
+            raise SerpApiError(kind="api_error", detail=message)
         if status >= 400:
-            raise SerpApiError("SerpApi rejected the request.", kind="api_error", detail=f"HTTP {status}")
+            raise SerpApiError(kind="api_error", detail=f"HTTP {status}")
         return payload

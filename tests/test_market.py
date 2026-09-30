@@ -6,7 +6,6 @@ from models.opportunity import OpportunityProfile
 from models.search import JobListing
 from services.analysis.market import analyze_market, interpret
 from services.evidence.store import EvidenceStore
-from services.resume.matching import match_skills
 from services.resume.parser import parse_resume_text
 from tests.fakes import ScriptedClient
 from utils.errors import SerpApiError
@@ -36,6 +35,20 @@ Intern - Acme Corp
 """)
 
 
+RESUME_TEXT_WITH_AZURE = """Asha Verma
+
+Skills
+Languages: Python, SQL, JavaScript
+Frameworks: FastAPI, React
+Databases: PostgreSQL, MongoDB
+Tools: Git, Azure
+
+Projects
+Tracker | Flask
+• Built a REST API with Flask and PostgreSQL and deployed it on Azure
+"""
+
+
 def listing(n, desc, title=ROLE, company="Some Co"):
     return JobListing(
         search_id="s1", job_id=f"m{n}", title=f"{title}", company_name=f"{company} {n}", location="Bengaluru, India",
@@ -58,9 +71,9 @@ def sample(n_docker, n_python, total, n_k8s=0):
     return out
 
 
-def run(listings, opp=OPP, fit=None, **kw):
+def run(listings, opp=OPP, resume=None, **kw):
     store = EvidenceStore(opp.company_name)
-    result = analyze_market(opp, listings, store, role_query=ROLE, location="India", fit=fit, **kw)
+    result = analyze_market(opp, listings, store, role_query=ROLE, location="India", resume=resume, **kw)
     return result, store
 
 
@@ -94,8 +107,7 @@ def test_interpretation_thresholds(percent, fragment):
 
 
 def test_resume_gap_is_flagged_and_only_a_frequent_gap_gets_an_action():
-    fit = match_skills(OPP, RESUME)
-    result, _ = run(sample(23, 40, 61), fit=fit)
+    result, _ = run(sample(23, 40, 61), resume=RESUME)
     docker, python = sig(result, "Docker"), sig(result, "Python")
     assert docker.missing_from_resume is True and "It was not found on your resume." in docker.interpretation
     assert docker.action == "Review Docker fundamentals if this fits your goals."
@@ -104,8 +116,7 @@ def test_resume_gap_is_flagged_and_only_a_frequent_gap_gets_an_action():
 
 
 def test_infrequent_gap_has_no_action():
-    fit = match_skills(OPP, RESUME)
-    result, _ = run(sample(n_docker=2, n_python=40, total=61), fit=fit)
+    result, _ = run(sample(n_docker=2, n_python=40, total=61), resume=RESUME)
     assert sig(result, "Docker").action is None
 
 
@@ -122,6 +133,33 @@ def test_adjacent_skills_are_common_in_the_sample_but_not_named_by_the_listing()
     assert set(adjacent) == {"AWS", "Terraform"} and adjacent["AWS"].percent == 50.0
     assert {s.skill for s in result.signals if s.scope == "in_listing"} == {"Python", "Docker", "Kubernetes"}
     assert sig(result, "Docker").count == 0  # named by the listing, never seen in the sample: reported as 0, not hidden
+
+
+def test_adjacent_skills_are_compared_with_the_resume_too():
+    listings = [listing(i, "Python with AWS and Terraform") for i in range(10)] + [listing(i + 10, "Python only") for i in range(10)]
+    result, _ = run(listings, resume=RESUME)
+    aws = sig(result, "AWS")
+    assert aws.scope == "adjacent" and aws.resume_status == "not_found" and aws.missing_from_resume is True
+    assert "It was not found on your resume." in aws.interpretation
+
+
+def test_a_related_skill_is_reported_as_partial_not_as_not_found():
+    with_azure = parse_resume_text(RESUME_TEXT_WITH_AZURE)
+    listings = [listing(i, "Python with AWS") for i in range(12)]
+    result, _ = run(listings, resume=with_azure)
+    aws = sig(result, "AWS")
+    assert aws.resume_status == "partial" and aws.missing_from_resume is True
+    assert "Only a related skill or a passing mention was found on your resume." in aws.interpretation
+    assert "was not found" not in aws.interpretation
+    assert aws.action == "Review AWS fundamentals if this fits your goals."
+
+
+def test_unknown_resume_status_makes_no_claim_about_the_resume():
+    sparse = parse_resume_text("Jane Roe\n\nSkills\nPython\n")
+    result, _ = run(sample(23, 40, 61), resume=sparse)
+    docker = sig(result, "Docker")
+    assert docker.resume_status == "unknown" and docker.missing_from_resume is None
+    assert "resume" not in docker.interpretation and docker.action is None
 
 
 def test_the_original_listing_and_offrole_titles_are_excluded_from_the_sample():

@@ -17,7 +17,7 @@ _MAX_DETAILS = 6
 _MAX_LINES = 12
 _SNIPPET_CHARS = 140
 MIN_SKILLS_FOR_CONFIDENCE = 5
-MIN_CHARS_FOR_CONFIDENCE = 400
+MIN_CHARS_FOR_CONFIDENCE = 250
 
 _SECTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (kind, re.compile(pattern))
@@ -45,7 +45,7 @@ _NOT_A_NAME = re.compile(
 )
 _SKILL_SPLIT = re.compile(r"[,;|•·/()\[\]]|\s{2,}|\s+[-–]\s+")
 _SECTION_LEVEL: dict[str, SkillLevel] = {
-    "skills": "listed", "projects": "used", "experience": "used", "certifications": "used",
+    "skills": "listed", "projects": "used", "experience": "used", "certifications": "mentioned",
     "education": "mentioned", "summary": "mentioned", "achievements": "mentioned", "other": "mentioned", "header": "mentioned",
 }
 _SECTION_LABEL = {
@@ -188,11 +188,14 @@ def parse_resume_text(text: str) -> ResumeProfile:
     )
     if "skills" not in sections:
         profile.notes.append("No 'Skills' section was found; skills were detected from the rest of the text.")
-    if len(profile.skills) < MIN_SKILLS_FOR_CONFIDENCE or len(text) < MIN_CHARS_FOR_CONFIDENCE:
+    few_skills = len(profile.skills) < MIN_SKILLS_FOR_CONFIDENCE
+    if few_skills or len(text) < MIN_CHARS_FOR_CONFIDENCE:
         profile.quality = "limited"
-        profile.notes.append(
-            f"Only {len(profile.skills)} skill(s) were detected, so 'not found in resume' results may not be meaningful."
+        reason = (
+            f"Only {len(profile.skills)} skill(s) were detected"
+            if few_skills else f"The resume text is very short ({len(text)} characters)"
         )
+        profile.notes.append(f"{reason}, so 'not found in resume' results may not be meaningful.")
     return profile
 
 

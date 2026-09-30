@@ -10,10 +10,11 @@ from collections import Counter
 
 from models.opportunity import OpportunityProfile
 from models.report import MarketAnalysis, MarketSignal
-from models.resume import FitSummary
+from models.resume import ResumeProfile
 from models.search import JobListing
 from services.analysis.hiring import is_same_listing, role_similarity
 from services.evidence.store import EvidenceStore
+from services.resume.matching import match_single
 from services.serpapi.jobs import dedupe_jobs
 from services.skills import extract_skills
 
@@ -27,7 +28,7 @@ MAX_EVIDENCE_LISTINGS = 40
 MAX_IDS_PER_SIGNAL = 12
 
 
-def interpret(skill: str, percent: float, missing: bool | None) -> tuple[str, str | None]:
+def interpret(skill: str, percent: float, resume_status: str | None) -> tuple[str, str | None]:
     """Neutral interpretation (and optional action) for a skill's share of the sample."""
     if percent >= FREQUENT_PERCENT:
         text = f"{skill} appears frequently enough in the sampled listings to consider it a useful preparation area."
@@ -36,18 +37,17 @@ def interpret(skill: str, percent: float, missing: bool | None) -> tuple[str, st
     else:
         text = f"{skill} appears in few of the sampled listings."
     action = None
-    if missing:
+    if resume_status == "not_found":
         text += " It was not found on your resume."
-        if percent >= FREQUENT_PERCENT:
-            action = f"Review {skill} fundamentals if this fits your goals."
+    elif resume_status == "partial":
+        text += " Only a related skill or a passing mention was found on your resume."
+    if resume_status in ("not_found", "partial") and percent >= FREQUENT_PERCENT:
+        action = f"Review {skill} fundamentals if this fits your goals."
     return text, action
 
 
-def _resume_gap(skill: str, fit: FitSummary | None) -> bool | None:
-    if fit is None:
-        return None
-    match = next((m for m in fit.matches if m.skill == skill), None)
-    return None if match is None else match.status != "matched"
+def _resume_status(skill: str, resume: ResumeProfile | None) -> str | None:
+    return None if resume is None else match_single(skill, resume).status
 
 
 def analyze_market(
@@ -57,7 +57,7 @@ def analyze_market(
     *,
     role_query: str,
     location: str | None,
-    fit: FitSummary | None = None,
+    resume: ResumeProfile | None = None,
     search_ids: list[str] | None = None,
 ) -> MarketAnalysis:
     unique = dedupe_jobs(listings)
@@ -105,12 +105,13 @@ def analyze_market(
     for skill, scope in plan[:MAX_SIGNALS]:
         count = counts.get(skill, 0)
         percent = round(100 * count / len(on_role), 1)
-        missing = _resume_gap(skill, fit)
-        interpretation, action = interpret(skill, percent, missing)
+        status = _resume_status(skill, resume)
+        interpretation, action = interpret(skill, percent, status)
         ids = [evidence_for[i] for i, skills in enumerate(skills_per_job) if skill in skills and i in evidence_for]
         analysis.signals.append(MarketSignal(
             skill=skill, count=count, total=len(on_role), scope=scope,  # type: ignore[arg-type]
-            missing_from_resume=missing,
+            resume_status=status,  # type: ignore[arg-type]
+            missing_from_resume=None if status in (None, "unknown") else status != "matched",
             statement=f"{count} of {len(on_role)} sampled listings mention {skill} ({percent:g}%).",
             interpretation=interpretation, action=action, evidence_ids=ids[:MAX_IDS_PER_SIGNAL],
         ))

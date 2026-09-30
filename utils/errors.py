@@ -32,9 +32,19 @@ class ExtractionError(ScoutLensError):
 
 
 class SerpApiError(ScoutLensError):
-    """Raised for any SerpApi failure. ``kind`` lets callers decide whether to continue."""
+    """Raised for any SerpApi failure. ``kind`` lets callers decide whether to continue, and also
+    determines the default user-facing message, so wording lives in exactly one place."""
 
     default_message = "SerpApi could not be reached. Check SERPAPI_KEY and try again."
+    KIND_MESSAGES = {
+        "no_key": "SerpApi is not configured. Add SERPAPI_KEY to your .env file.",
+        "invalid_key": "SerpApi rejected the API key. Check SERPAPI_KEY in your .env file.",
+        "rate_limited": "SerpApi rate limit or search quota reached. Wait a moment or check your plan.",
+        "timeout": "SerpApi took too long to respond. Try again in a moment.",
+        "server_error": "SerpApi is temporarily unavailable.",
+        "bad_response": "SerpApi returned an unreadable response.",
+        "api_error": "SerpApi could not complete the search.",
+    }
 
     def __init__(
         self,
@@ -43,8 +53,8 @@ class SerpApiError(ScoutLensError):
         kind: str = "unknown",
         detail: str | None = None,
     ) -> None:
-        super().__init__(user_message, detail=detail)
-        self.kind = kind  # invalid_key | rate_limited | timeout | network | bad_response | api_error
+        super().__init__(user_message or self.KIND_MESSAGES.get(kind), detail=detail)
+        self.kind = kind  # no_key | invalid_key | rate_limited | timeout | network | server_error | bad_response | api_error
 
     @property
     def is_fatal(self) -> bool:
