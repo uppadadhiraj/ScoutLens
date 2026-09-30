@@ -10,6 +10,39 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field
 
+# -------------------------------------------------------------------------- market
+
+class MarketSignal(BaseModel):
+    """Demand for one skill within the sampled listings. ``total`` is the real sample size."""
+
+    skill: str
+    count: int = Field(ge=0)
+    total: int = Field(ge=0)
+    scope: Literal["in_listing", "adjacent"]  # named by this listing, or common in the sample but not named
+    missing_from_resume: bool | None = None  # ``None`` when no resume was supplied
+    statement: str  # FACT
+    interpretation: str  # neutral INTERPRETATION
+    action: str | None = None
+    evidence_ids: list[str] = Field(default_factory=list)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def percent(self) -> float:
+        return round(100 * self.count / self.total, 1) if self.total else 0.0
+
+
+class MarketAnalysis(BaseModel):
+    role_query: str
+    location: str | None = None
+    sample_size: int = 0
+    low_sample: bool = False
+    excluded_off_role: int = 0
+    signals: list[MarketSignal] = Field(default_factory=list)
+    method: str = ""
+    search_ids: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------- news
 
 Relevance = Literal["high", "medium", "low"]

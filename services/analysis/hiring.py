@@ -80,6 +80,9 @@ def is_same_listing(job: JobListing, opp: OpportunityProfile) -> bool:
     theirs = {_url_key(link.url) for link in job.apply_links} | {_url_key(job.share_link)}
     if ours & theirs:
         return True
+    # A title match alone is not enough: other employers post the same title. Require the same company.
+    if job.company_name and opp.company_name and not company_matches(job.company_name, opp.company_name):
+        return False
     if not opp.role_title or _TOKEN.findall(job.title.lower()) != _TOKEN.findall(opp.role_title.lower()):
         return False
     a, b = city_of(job.location), city_of(opp.location)

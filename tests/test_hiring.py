@@ -68,6 +68,12 @@ def test_same_listing_by_url_even_when_titles_differ():
     assert is_same_listing(j, opp())
 
 
+def test_same_title_at_another_employer_is_not_the_same_listing():
+    # regression: the market sample is full of identical titles from other companies
+    assert not is_same_listing(job(1, company="Globex Corp"), opp())
+    assert is_same_listing(job(1, company="Northwind Labs Pvt Ltd"), opp())
+
+
 def test_same_listing_by_title_and_place():
     assert is_same_listing(job(1), opp())
     assert is_same_listing(job(1, loc="Bengaluru"), opp())
