@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
 
     # App
+    # Hosted showcase mode: only the built-in demo can run; the URL/resume/paste inputs are hidden and
+    # nothing is stored, so anonymous visitors never see each other's data. Off by default.
+    public_demo: bool = False
     cache_ttl_hours: float = Field(default=24.0, ge=0)
     max_resume_mb: float = Field(default=5.0, gt=0)
     log_level: str = "INFO"
@@ -71,6 +74,7 @@ class Settings(BaseSettings):
         }[self.llm_provider]
         return {
             "serpapi_configured": self.has_serpapi_key,
+            "public_demo": self.public_demo,
             "llm_provider": self.llm_provider,
             "llm_model": llm_model,
             "cache_ttl_hours": self.cache_ttl_hours,

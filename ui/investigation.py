@@ -36,6 +36,8 @@ def _target(request: InvestigationRequest) -> str:
 
 
 def _persist(report: InvestigationReport) -> None:
+    if get_services().settings.public_demo:
+        return  # hosted showcase: keep nothing, so visitors can never see each other's runs
     try:
         get_services().repository.save(report)
     except HistoryError as exc:

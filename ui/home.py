@@ -68,10 +68,28 @@ def _needs_company_panel() -> bool:
     return True
 
 
+def _public_demo_home() -> None:
+    """Hosted showcase: only the built-in demo is available (no URL fetching, uploads or stored history)."""
+    st.markdown(
+        '<div class="sl-notice sl-warnbox"><b>Public demo.</b> This hosted copy runs the built-in demo investigation only: '
+        "a fictional company with recorded responses, through the real analysis pipeline. Live investigations need a "
+        "SerpApi key and are disabled here; nothing you do on this page is stored. "
+        'Run it locally for live searches (see the <a href="https://github.com/uppadadhiraj/ScoutLens" '
+        'target="_blank" rel="noopener noreferrer">README</a>).</div>',
+        unsafe_allow_html=True,
+    )
+    if st.button("Try the demo", type="primary"):
+        st.session_state["pending_request"] = InvestigationRequest(demo=True)
+        go("investigation")
+
+
 def render() -> None:
     services = get_services()
     status = services.settings.public_status()
     _hero()
+    if status["public_demo"]:
+        _public_demo_home()
+        return
     _setup_notice(bool(status["serpapi_configured"]))
     if _needs_company_panel():
         return

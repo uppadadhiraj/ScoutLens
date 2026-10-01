@@ -28,6 +28,14 @@ def render() -> None:
     if message := st.session_state.pop("history_error", None):
         st.error(message)
 
+    if services.settings.public_demo:
+        st.markdown(
+            '<div class="sl-notice">History is turned off in the public demo: nothing is stored, so there is nothing to show. '
+            "Run ScoutLens locally to keep a history of your own investigations.</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
     items = services.repository.list()
     if not items:
         st.markdown('<div class="sl-notice">No investigations yet. Run one from the home page, or try the demo.</div>', unsafe_allow_html=True)
